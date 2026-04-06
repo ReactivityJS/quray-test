@@ -11,7 +11,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { PIPELINE_PRIORITY } from '../core/events.js'
-import { canonicalizeQuBit } from '../core/qubit.js'
+import { canonicalizeQuBit, NO_STORE_TYPES } from '../core/qubit.js'
 
 
 /**
@@ -26,10 +26,17 @@ const VerifyPlugin = (identityInstance) => (db) => {
   const offFn = db.useIn(async ({ args: [pipelineContext], next, stop }) => {
     const { qubit } = pipelineContext
 
-    // Signaling-Typen (peer.hello, peer.bye, webrtc.*, etc.) haben keine Signatur
-    // und werden nie persistiert — einfach durchlassen
     if (!qubit?.sig || !qubit?.from) {
-      await next()
+      // Signaling-Typen (peer.hello, peer.bye, webrtc.*, etc.) haben keine Signatur
+      // und werden nie persistiert — explizit erlaubt.
+      if (NO_STORE_TYPES.has(qubit?.type)) {
+        await next()
+        return
+      }
+      // Persistierbare Typen (data, msg, blob.meta, …) MÜSSEN eine Signatur haben.
+      // Ein QuBit ohne sig/from könnte manipuliert oder korrupt sein.
+      /*DEBUG*/ console.warn('[QuRay:VerifyPlugin] Unsigned persistable QuBit rejected:', qubit?.type, qubit?.key?.slice(0, 32))
+      stop()
       return
     }
 

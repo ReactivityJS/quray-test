@@ -75,12 +75,12 @@ const AccessControlPlugin = () => (database) => {
   const stopIncoming = database.useIn(async ({ args: [pipelineContext], next }) => {
     await validateWrite(pipelineContext, 'incoming')
     await next()
-  }, PIPELINE_PRIORITY.VERIFY - 1)
+  }, PIPELINE_PRIORITY.ACCESS_IN)
 
   const stopOutgoing = database.useOut(async ({ args: [pipelineContext], next }) => {
     await validateWrite(pipelineContext, 'outgoing')
     await next()
-  }, PIPELINE_PRIORITY.SIGN + 1)
+  }, PIPELINE_PRIORITY.ACCESS_OUT)
 
   return () => {
     stopIncoming()

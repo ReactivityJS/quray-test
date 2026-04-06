@@ -429,10 +429,13 @@ const suffixRunner = (suffix) => ({
 const PIPELINE_PRIORITY = {
   // IN-Pipeline (eingehend: Netz → DB)
   VERIFY:       80,   // Signatur prüfen — zuerst, stop() bei Fehler
+  ACCESS_IN:    79,   // ACL-Check eingehend — nach Verify, vor Store
   STORE_IN:     60,   // in DB schreiben — nach Verifikation
   DISPATCH_IN:  50,   // db.on() feuern — nach Store (UI sieht valide Daten)
 
   // OUT-Pipeline (ausgehend: App → Netz)
+  ACCESS_OUT:   76,   // ACL-Check ausgehend — VOR E2E und SIGN, damit abgelehnte
+                      // Writes weder verschlüsselt noch signiert werden
   E2E:          75,   // Verschlüsseln — VOR sign! Signatur über EncData.
   SIGN:         70,   // ECDSA signieren — nach E2E, vor Store
   STORE_OUT:    60,   // signierte MSG in DB — nach Sign, gleiche Prio wie STORE_IN
