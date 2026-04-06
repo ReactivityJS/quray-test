@@ -3,6 +3,26 @@
 This file captures the modular intent of the framework.
 It is primarily a planning and packaging aid.
 
+## Pipeline priorities
+
+Plugins register at a numeric priority. Higher numbers run earlier in the pipeline.
+
+| Plugin | Priority constant | Value | Pipeline |
+|---|---|---|---|
+| `VerifyPlugin` | `VERIFY` | 80 | IN |
+| `AccessControlPlugin` | `ACCESS_IN` | 79 | IN |
+| `StoreInPlugin` | `STORE_IN` | 60 | IN |
+| `DispatchPlugin` | `DISPATCH_IN` | 50 | IN |
+| `AccessControlPlugin` | `ACCESS_OUT` | 76 | OUT |
+| `E2EPlugin` | `E2E` | 75 | OUT |
+| `SignPlugin` | `SIGN` | 70 | OUT |
+| `StoreOutPlugin` | `STORE_OUT` | 60 | OUT |
+| `DispatchPlugin` | `DISPATCH_OUT` | 49 | OUT |
+| `SyncPlugin` | `SYNC_OUT` | 5 | OUT |
+
+Pipeline execution order (IN): VERIFY → ACCESS_IN → STORE_IN → DISPATCH_IN
+Pipeline execution order (OUT): ACCESS_OUT → E2E → SIGN → STORE_OUT → DISPATCH_OUT → SYNC_OUT
+
 ## Storage adapters
 
 | Module | Purpose | Typical mounts | Required in core bundle |
