@@ -112,11 +112,36 @@ const BlobFsBackend = ({ dir } = {}) => {
   // Blob-Dateiname: hash direkt (URL-safe, kein Encoding nötig)
   const _blobPath = (hash) => join(dir, hash.replace(/[/\\]/g, '_'))
 
-  const get    = (hash)         => { try { const p=_blobPath(hash); return existsSync(p)?readFileSync(p):null } catch { return null } }
-  const set    = (hash, buffer) => { try { writeFileSync(_blobPath(hash), buffer) } catch(e) { throw e } }
-  const del    = (hash)         => { try { const p=_blobPath(hash); if(existsSync(p)) unlinkSync(p) } catch {} }
-  const exists = (hash)         => existsSync(_blobPath(hash))
-  const query  = ()             => []  // Blobs werden nicht per prefix abgefragt
+  const get = (hash) => {
+    try {
+      const p = _blobPath(hash)
+      return existsSync(p) ? readFileSync(p) : null
+    } catch {
+      return null
+    }
+  }
+
+  // set: wirft bei Schreibfehler damit der Aufrufer einen Retry einleiten kann
+  const set = (hash, buffer) => {
+    try {
+      writeFileSync(_blobPath(hash), buffer)
+    } catch (e) {
+      console.error('[QuRay:BlobFsBackend] set error:', hash, e.message)
+      throw e
+    }
+  }
+
+  const del = (hash) => {
+    try {
+      const p = _blobPath(hash)
+      if (existsSync(p)) unlinkSync(p)
+    } catch (e) {
+      /*DEBUG*/ console.warn('[QuRay:BlobFsBackend] del error:', hash, e.message)
+    }
+  }
+
+  const exists = (hash) => existsSync(_blobPath(hash))
+  const query  = ()     => []  // Blobs werden nicht per Prefix abgefragt
 
   return { name: 'blob-fs', get, set, del, query, exists }
 }

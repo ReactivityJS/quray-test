@@ -149,7 +149,7 @@ const HttpTransport = (options = {}) => {
       }
 
       // Netzwerk-Fehler → retry-fähig
-      if (!_retryOnCodes.has(parseInt(sendError.message?.split(' ')[1]))) {
+      if (!_retryOnCodes.has(parseInt(sendError.message?.split(' ')[1], 10))) {
         /*DEBUG*/ console.warn('[QuRay:HttpTransport] Netzwerk-Fehler:', sendError.message)
         await state$.set(TRANSPORT_STATE.ERROR)
       }

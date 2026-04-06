@@ -305,7 +305,7 @@ class QuFor extends HTMLElement {
     if (!this._db) return
     const prefix  = this.getAttribute('qu-for') || this.getAttribute('prefix') || ''
     const order   = this.getAttribute('qu-order') || this.getAttribute('order') || 'ts'
-    const limit   = parseInt(this.getAttribute('qu-limit') || this.getAttribute('limit') || '200')
+    const limit   = parseInt(this.getAttribute('qu-limit') || this.getAttribute('limit') || '200', 10)
     const tmpl    = this.querySelector('template')
     if (!tmpl || !prefix) return
 
@@ -433,7 +433,7 @@ const QuDirectives = (db) => {
       _offs.push(() => itemOffs.forEach(off => off?.()))
       const prefix = forEl.getAttribute('qu-for')
       const order  = forEl.getAttribute('qu-order') || 'ts'
-      const limit  = parseInt(forEl.getAttribute('qu-limit') || '200')
+      const limit  = parseInt(forEl.getAttribute('qu-limit') || '200', 10)
       const tmpl   = forEl.querySelector('template')
       if (tmpl && prefix) {
         const _render = async () => {
@@ -509,7 +509,7 @@ const QuDirectives = (db) => {
       // Plain attribute on a non-custom-element
       const prefix = forEl.getAttribute('qu-for')
       const order  = forEl.getAttribute('qu-order') || 'ts'
-      const limit  = parseInt(forEl.getAttribute('qu-limit') || '200')
+      const limit  = parseInt(forEl.getAttribute('qu-limit') || '200', 10)
       const tmpl   = forEl.querySelector('template')
       if (tmpl && prefix) {
         const _render = async () => {

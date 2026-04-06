@@ -271,8 +271,8 @@ const init = async (options = {}) => {
       httpUrl,
     })
 
-    await httpTransport.connect(httpUrl).catch(() => {})
-    await wsTransport.connect(rc.url).catch(() => {})
+    await httpTransport.connect(httpUrl).catch(e => { /*DEBUG*/ console.warn('[QuRay] HTTP connect failed (relay offline?):', e.message) })
+    await wsTransport.connect(rc.url).catch(e => { /*DEBUG*/ console.warn('[QuRay] WS connect failed:', e.message) })
 
     // Send initial peer.hello via presence plugin (if active) or bare send
     if (presence) {
@@ -281,7 +281,7 @@ const init = async (options = {}) => {
       await wsTransport.send({
         payload: { type: 'peer.hello', from: identity.pub, ts: Date.now(),
           data: { alias: identity.alias, epub: identity.epub } }
-      }).catch(() => {})
+      }).catch(e => { /*DEBUG*/ console.warn('[QuRay] peer.hello send failed:', e.message) })
     }
 
     // Configure Service Worker for background push (primary relay only)
@@ -342,11 +342,11 @@ const init = async (options = {}) => {
       transportName: wsName, httpUrl,
     })
 
-    await httpT.connect(httpUrl).catch(() => {})
-    await wsT.connect(relay.url).catch(() => {})
+    await httpT.connect(httpUrl).catch(e => { /*DEBUG*/ console.warn('[QuRay] addRelay HTTP connect failed:', e.message) })
+    await wsT.connect(relay.url).catch(e => { /*DEBUG*/ console.warn('[QuRay] addRelay WS connect failed:', e.message) })
 
     if (presence) await presence.sendHello(net, wsName)
-    else await wsT.send({ payload: { type: 'peer.hello', from: identity.pub, ts: Date.now(), data: { alias: identity.alias, epub: identity.epub } } }).catch(() => {})
+    else await wsT.send({ payload: { type: 'peer.hello', from: identity.pub, ts: Date.now(), data: { alias: identity.alias, epub: identity.epub } } }).catch(e => { /*DEBUG*/ console.warn('[QuRay] addRelay peer.hello send failed:', e.message) })
 
     relayConnections.push({ relay, ws: wsT, http: httpT, label: relay.label })
   }
@@ -414,7 +414,7 @@ const init = async (options = {}) => {
   }
 
   // Resolve deferred ready() callbacks.
-  for (const cb of _readyCallbacks) { try { cb(qr) } catch {} }
+  for (const cb of _readyCallbacks) { try { cb(qr) } catch (e) { /*DEBUG*/ console.warn('[QuRay] ready() callback error:', e) } }
   _readyCallbacks.length = 0
   _instance = qr
 
@@ -526,7 +526,7 @@ const _configureServiceWorker = (relayUrl, ownerPub, options = {}) => {
       periodicSync:     options.periodicSync     ?? false,
       periodicInterval: options.periodicInterval ?? 15 * 60 * 1000,
     })
-  }).catch(() => {})
+  }).catch(e => { /*DEBUG*/ console.warn('[QuRay] SW config failed:', e.message) })
 }
 
 
@@ -537,7 +537,7 @@ const _configureServiceWorker = (relayUrl, ownerPub, options = {}) => {
 //   <script src="dist/quray.js" data-relay="wss://…" data-ui></script>
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ready    = (cb) => { if (_instance) { try { cb(_instance) } catch {} } else _readyCallbacks.push(cb) }
+const ready    = (cb) => { if (_instance) { try { cb(_instance) } catch (e) { /*DEBUG*/ console.warn('[QuRay] ready() callback error:', e) } } else _readyCallbacks.push(cb) }
 const instance = () => _instance
 
 const _autoInit = () => {

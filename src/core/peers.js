@@ -180,8 +180,7 @@ const Peer = ({ mode = 'remote', identity = null, db = null, initialPub = null }
 
   // Init: full mode writes node and subscribes to own changes
   if (mode === 'full' && db) {
-    _writeNode().catch(() => {})
-    // Listen on alias sub-key for changes (e.g. from relay sync)
+    _writeNode().catch(e => { /*DEBUG*/ console.warn('[QuRay:Peer] writeNode failed:', e.message) })
     // Watch for alias changes from relay sync
     db.on(`~${pub64(_pub)}/alias`, (q) => {
       const alias = q?.data ?? q
