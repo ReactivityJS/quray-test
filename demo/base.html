@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Base</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.query-btn{text-align:left;padding:8px 12px;font-size:12px;font-family:var(--mono);border-radius:8px;width:100%}
+#result-pre{margin:0;max-height:340px;overflow:auto;font-size:11px;tab-size:2}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>Base</h1>
+    <p>Vorgefertigte Abfragen, Init-Timing und Framework-Introspection.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button id="btn-seed" class="success">Seed-Daten anlegen</button>
+    <button id="btn-clear-data" class="warning">Seed löschen</button>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">QuRay initialisieren…</div>
+</div>
+
+<section class="layout-grid two-columns">
+
+  <article class="card">
+    <h2>Init-Timing</h2>
+    <div id="timing-log" class="demo-log" style="min-height:120px"></div>
+    <div class="metric-grid" style="margin-top:12px">
+      <div class="metric"><div class="metric-label">Gesamt</div><div class="metric-value" id="m-total-time">—</div></div>
+      <div class="metric"><div class="metric-label">Pub (kurz)</div><div class="metric-value" id="m-pub" style="font-size:13px">—</div></div>
+      <div class="metric"><div class="metric-label">Alias</div><div class="metric-value" id="m-alias" style="font-size:14px">—</div></div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Vorgefertigte Queries</h2>
+    <div class="stack">
+      <button class="query-btn button-link" data-q="user-space">~ Userspace abfragen</button>
+      <button class="query-btn button-link" data-q="shared">@ Shared Space abfragen</button>
+      <button class="query-btn button-link" data-q="conf">conf/ Konfiguration</button>
+      <button class="query-btn button-link" data-q="sys">sys/ System-State</button>
+      <button class="query-btn button-link" data-q="demo-notes">@demo/notes/ Demo-Notizen</button>
+      <button class="query-btn button-link" data-q="all-ts-desc">Alle (ts-desc, limit 20)</button>
+      <button class="query-btn button-link" data-q="identity">Identitätsdaten (me.*)</button>
+      <button class="query-btn button-link" data-q="peers">sys/peers/ bekannte Peers</button>
+    </div>
+  </article>
+
+  <article class="card" style="grid-column:1/-1">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">Query-Ergebnis</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="small-text" id="result-meta">—</span>
+        <input id="custom-prefix" class="demo-input compact" placeholder="Eigener Prefix…" style="width:200px;font-size:12px">
+        <button class="primary" id="btn-custom">Abfragen</button>
+      </div>
+    </div>
+    <pre id="result-pre"><code id="result-code">Wähle eine Query links…</code></pre>
+  </article>
+
+</section>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import QuRay from '../src/quray.js'
+import { createTimer } from './lib/demo-runtime.js'
+
+const timingEl = document.getElementById('timing-log')
+const logT = msg => {
+  const d = document.createElement('div')
+  d.className = 'log-line log-info'
+  d.textContent = msg
+  timingEl.appendChild(d)
+  timingEl.scrollTop = timingEl.scrollHeight
+}
+
+const t = createTimer(logT)
+t.step('Start')
+document.getElementById('init-status').textContent = 'Identity generieren…'
+const qr = await QuRay.init({ alias:'Base Demo User', ui:false, binding:false })
+window.qr = qr
+t.step('QuRay.init komplett')
+t.done('Bereit')
+document.getElementById('init-overlay').remove()
+
+document.getElementById('m-total-time').textContent = `${Math.round(t.elapsed())}ms`
+document.getElementById('m-pub').textContent   = qr.me.pub64.slice(0,14)+'…'
+document.getElementById('m-alias').textContent = qr.me.alias ?? '—'
+
+// ── Seed data ──────────────────────────────────────────────────────────────
+document.getElementById('btn-seed').onclick = async () => {
+  const ts = createTimer(logT)
+  ts.step('Seed start')
+  await qr.db.put('@demo/notes/001', { text:'Erste Notiz', priority:1 })
+  await qr.db.put('@demo/notes/002', { text:'Zweite Notiz', priority:2, tags:['wichtig'] })
+  await qr.db.put('@demo/notes/003', { text:'Dritte Notiz', archived:true })
+  await qr.db.put(`~${qr.me.pub64}/prefs/theme`, { mode:'dark', accent:'blue' })
+  await qr.db.put(`~${qr.me.pub64}/prefs/lang`, 'de')
+  ts.done('Seed fertig — 5 Einträge')
+}
+
+document.getElementById('btn-clear-data').onclick = async () => {
+  const ts = createTimer(logT)
+  const notes = await qr.db.query('@demo/notes/')
+  for (const q of notes) await qr.db.del(q.key)
+  ts.done(`${notes.length} Seed-Einträge gelöscht`)
+}
+
+// ── Query runner ──────────────────────────────────────────────────────────
+const run = async (prefix, opts={}) => {
+  const ts = createTimer(logT)
+  ts.step(`Query: "${prefix}"`)
+  let rows = []
+  try {
+    rows = await qr.db.query(prefix, { includeDeleted:false, ...opts })
+  } catch(e) { ts.step('Fehler: ' + e.message); rows = [] }
+  ts.done(`${rows.length} Zeilen`)
+  document.getElementById('result-meta').textContent = `${rows.length} Zeilen — ${Math.round(ts.elapsed())}ms`
+  const code = document.getElementById('result-code')
+  code.textContent = rows.length
+    ? JSON.stringify(rows.map(q => ({
+        key: q.key,
+        type: q.type,
+        ts:  q.ts ? new Date(q.ts).toISOString() : null,
+        data: q.data,
+        from: q.from ? q.from.slice(0,16)+'…' : null,
+      })), null, 2)
+    : '// (keine Einträge)'
+}
+
+const QUERIES = {
+  'user-space':  () => run(`~${qr.me.pub64}/`, { order:'ts-desc' }),
+  'shared':      () => run('@', { order:'ts-desc', limit:50 }),
+  'conf':        () => run('conf/', { order:'key' }),
+  'sys':         () => run('sys/', { order:'key' }),
+  'demo-notes':  () => run('@demo/notes/', { order:'ts' }),
+  'all-ts-desc': () => run('~', { order:'ts-desc', limit:20 }),
+  'identity':    async () => {
+    const backup = await qr.me.exportBackup(null).catch(() => null)
+    document.getElementById('result-code').textContent =
+      JSON.stringify({ pub:qr.me.pub, pub64:qr.me.pub64, epub:qr.me.epub, alias:qr.me.alias,
+        hasBackup: !!backup }, null, 2)
+    document.getElementById('result-meta').textContent = 'Identitätsdaten'
+  },
+  'peers': () => run('sys/peers/', { order:'ts-desc' }),
+}
+
+document.querySelectorAll('[data-q]').forEach(btn => {
+  btn.onclick = () => QUERIES[btn.dataset.q]?.()
+})
+
+document.getElementById('btn-custom').onclick = () => {
+  const p = document.getElementById('custom-prefix').value.trim()
+  if (p) run(p, { order:'ts-desc', limit:100 })
+}
+</script>
+</body>
+</html>

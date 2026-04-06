@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Blob-Test</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.step-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.step-row:last-child{border-bottom:none}
+.step-icon{font-size:18px;width:28px;text-align:center;flex-shrink:0}
+.step-label{flex:1;font-size:13px}
+.step-status{font-size:12px;color:var(--muted);white-space:nowrap}
+.step-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:4px}
+.step-fill{height:100%;border-radius:3px;background:var(--primary);transition:width .3s;width:0%}
+.step-status.ok{color:var(--success)}.step-status.err{color:var(--danger)}.step-status.running{color:var(--warning)}
+.media-wrap{position:relative;min-height:200px;border:1px dashed var(--border);border-radius:12px;
+  background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.media-wrap .media-empty{color:var(--muted);font-size:13px}
+.media-wrap video,.media-wrap audio,.media-wrap img{max-width:100%;max-height:400px;border-radius:8px}
+.media-wrap img{object-fit:contain;cursor:zoom-in}
+.media-toolbar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>Blob-Test</h1>
+    <p>Lokal · Relay · Remote-Delivery — mit Schritt-Fortschritt und Media-Player.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button id="btn-auto" class="primary">▶ Alle Schritte auto</button>
+    <button id="btn-reset" class="warning">Reset</button>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">Peers init…</div>
+</div>
+
+<section class="layout-grid two-columns">
+
+  <!-- Left: Upload + Steps -->
+  <article class="card">
+    <h2>Datei wählen</h2>
+    <div class="stack">
+      <input type="file" id="file-input" accept="image/*,video/*,audio/*,application/pdf">
+      <div class="demo-actions">
+        <button id="btn-local"  class="success">① Lokal speichern</button>
+        <button id="btn-relay"  class="primary">② Relay-Sync</button>
+        <button id="btn-remote" >③ Remote-Delivery</button>
+      </div>
+    </div>
+
+    <h2 style="margin-top:16px">Schritte</h2>
+    <div id="steps">
+      <div class="step-row" id="s-select">
+        <span class="step-icon">📁</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between">
+            <span class="step-label">Datei ausgewählt</span>
+            <span class="step-status" id="s-select-st">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="step-row" id="s-hash">
+        <span class="step-icon">🔑</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between">
+            <span class="step-label">SHA-256 Hash</span>
+            <span class="step-status" id="s-hash-st">—</span>
+          </div>
+          <div class="small-text" id="s-hash-val" style="font-family:var(--mono);font-size:10px;margin-top:2px;color:var(--muted)"></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <span class="step-icon">💾</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between">
+            <span class="step-label">Lokal (Alice staged)</span>
+            <span class="step-status" id="s-local-st">—</span>
+          </div>
+          <div class="step-bar"><div class="step-fill" id="s-local-bar"></div></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <span class="step-icon">📡</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between">
+            <span class="step-label">Relay-Upload</span>
+            <span class="step-status" id="s-relay-st">—</span>
+          </div>
+          <div class="step-bar"><div class="step-fill" id="s-relay-bar"></div></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <span class="step-icon">📥</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between">
+            <span class="step-label">Remote (Bob Download)</span>
+            <span class="step-status" id="s-remote-st">—</span>
+          </div>
+          <div class="step-bar"><div class="step-fill" id="s-remote-bar"></div></div>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Right: Media previews -->
+  <article class="card">
+    <h2>Alice</h2>
+    <div class="media-wrap" id="alice-wrap"><span class="media-empty">Kein Blob</span></div>
+    <div class="media-toolbar" id="alice-toolbar"></div>
+
+    <h2 style="margin-top:16px">Bob</h2>
+    <div class="media-wrap" id="bob-wrap"><span class="media-empty">Kein Blob</span></div>
+    <div class="media-toolbar" id="bob-toolbar"></div>
+  </article>
+
+  <!-- Log -->
+  <article class="card" style="grid-column:1/-1">
+    <h2>Timing-Log</h2>
+    <div id="log" class="demo-log" style="max-height:260px"></div>
+  </article>
+</section>
+
+<!-- Lightbox -->
+<div id="lightbox" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);
+  display:none;align-items:center;justify-content:center;cursor:zoom-out" onclick="this.hidden=true;this.style.display='none'">
+  <img id="lb-img" style="max-width:95vw;max-height:95vh;border-radius:8px;object-fit:contain">
+</div>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import { createDemoPair, createTimer, createLogWriter } from './lib/demo-runtime.js'
+import { sha256b64url } from '../src/core/identity.js'
+
+const logEl = document.getElementById('log')
+const log   = createLogWriter(logEl)
+const t     = createTimer(msg => log(msg))
+
+t.step('Start')
+const { relay, alice, bob } = await createDemoPair({ timer: t })
+window.qrPeers = { alice, bob, relay: typeof relay !== "undefined" ? relay : null }
+t.done('Init')
+document.getElementById('init-overlay').remove()
+
+let currentFile = null, currentHash = null, currentBuf = null
+
+// ── Step helpers ──────────────────────────────────────────────────────────────
+const setStep = (id, status, label='') => {
+  const el = document.getElementById(`s-${id}-st`)
+  el.className = `step-status ${status}`
+  el.textContent = label || { ok:'✓ OK', err:'✗ Fehler', running:'…', '':'—' }[status] || status
+  const bar = document.getElementById(`s-${id}-bar`)
+  if (bar) bar.style.width = status==='ok'?'100%':status==='running'?'50%':'0%'
+}
+
+// ── Media player builder ──────────────────────────────────────────────────────
+function buildPlayer(url, mime, name, wrap, toolbar) {
+  wrap.innerHTML = ''
+  toolbar.innerHTML = ''
+
+  let media
+  if (mime.startsWith('image/')) {
+    media = document.createElement('img')
+    media.src = url
+    media.style.cssText = 'max-width:100%;max-height:360px;object-fit:contain;border-radius:8px;cursor:zoom-in'
+    media.onclick = () => {
+      const lb = document.getElementById('lightbox')
+      document.getElementById('lb-img').src = url
+      lb.hidden = false; lb.style.display = 'flex'
+    }
+  } else if (mime.startsWith('video/')) {
+    media = document.createElement('video')
+    media.src = url; media.controls = true
+    media.style.cssText = 'max-width:100%;max-height:360px;border-radius:8px'
+  } else if (mime.startsWith('audio/')) {
+    media = document.createElement('audio')
+    media.src = url; media.controls = true; media.style.width = '100%'
+  } else if (mime === 'application/pdf') {
+    media = document.createElement('iframe')
+    media.src = url
+    media.style.cssText = 'width:100%;height:320px;border:none;border-radius:8px'
+  } else {
+    media = document.createElement('div')
+    media.className = 'small-text'
+    media.style.padding = '16px'
+    media.textContent = `📄 ${name} (${mime})`
+  }
+  wrap.appendChild(media)
+
+  // Toolbar: Download + optional maximize
+  const dlBtn = document.createElement('a')
+  dlBtn.href = url; dlBtn.download = name
+  dlBtn.className = 'button-link'
+  dlBtn.style.cssText = 'font-size:12px;padding:5px 9px'
+  dlBtn.textContent = '⬇ Download'
+  toolbar.appendChild(dlBtn)
+}
+
+// ── Step 1: Local save ─────────────────────────────────────────────────────────
+const localSave = async () => {
+  if (!currentFile) { log('Keine Datei gewählt', 'warning'); return false }
+  setStep('local', 'running')
+  const buf = currentBuf ?? await currentFile.arrayBuffer()
+  currentBuf = buf
+  const hash = await sha256b64url(buf)
+  currentHash = hash
+  document.getElementById('s-hash-val').textContent = hash.slice(0,32)+'…'
+  setStep('hash', 'ok', hash.slice(0,12)+'…')
+  await alice.db.blobs.stage(hash, buf, { mime: currentFile.type, name: currentFile.name, size: currentFile.size })
+  setStep('local', 'ok', `${(buf.byteLength/1024).toFixed(1)} KB`)
+  const url = alice.db.blobs.status(hash)?.url
+  if (url) buildPlayer(url, currentFile.type, currentFile.name,
+    document.getElementById('alice-wrap'), document.getElementById('alice-toolbar'))
+  log(`Alice staged: ${currentFile.name} (${hash.slice(0,12)}…)`, 'success')
+  return true
+}
+
+// ── Step 2: Relay sync ─────────────────────────────────────────────────────────
+const relaySend = async () => {
+  if (!currentHash || !currentBuf) { log('Zuerst lokal speichern', 'warning'); return false }
+  setStep('relay', 'running')
+  const result = await relay.uploadBlob({
+    hash: currentHash, buffer: currentBuf,
+    mime: currentFile.type, name: currentFile.name, from: alice.pub,
+  })
+  setStep('relay', result.ok ? 'ok' : 'err')
+  log(`Relay upload: ${result.ok?'✓':'✗'}`, result.ok?'success':'danger')
+  return result.ok
+}
+
+// ── Step 3: Remote delivery (Bob) ─────────────────────────────────────────────
+const remoteDeliver = async () => {
+  if (!currentHash) { log('Zuerst Relay-Sync', 'warning'); return false }
+  setStep('remote', 'running')
+  const result = await relay.downloadBlob({ hash: currentHash })
+  if (!result) { setStep('remote', 'err', 'Nicht im Relay'); return false }
+  await bob.db.blobs.stage(currentHash, result.buffer,
+    { mime: currentFile.type, name: currentFile.name, size: result.buffer.byteLength })
+  setStep('remote', 'ok', `${(result.buffer.byteLength/1024).toFixed(1)} KB`)
+  const url = bob.db.blobs.status(currentHash)?.url
+  if (url) buildPlayer(url, currentFile.type, currentFile.name,
+    document.getElementById('bob-wrap'), document.getElementById('bob-toolbar'))
+  log('Bob: Remote-Delivery ✓', 'success')
+  return true
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────────
+document.getElementById('file-input').onchange = e => {
+  currentFile = e.target.files[0] ?? null
+  currentHash = null; currentBuf = null
+  setStep('select', currentFile ? 'ok' : '', currentFile ? currentFile.name : '—')
+  setStep('hash', ''); setStep('local', ''); setStep('relay', ''); setStep('remote', '')
+  ;['alice-wrap','bob-wrap'].forEach(id => {
+    document.getElementById(id).innerHTML = '<span class="media-empty">Kein Blob</span>'
+  })
+  ;['alice-toolbar','bob-toolbar'].forEach(id => { document.getElementById(id).innerHTML='' })
+}
+
+document.getElementById('btn-local').onclick  = () => localSave()
+document.getElementById('btn-relay').onclick  = () => relaySend()
+document.getElementById('btn-remote').onclick = () => remoteDeliver()
+
+// ── Auto: alle Schritte sequenziell mit Fortschrittsanzeige ────────────────────
+document.getElementById('btn-auto').onclick = async () => {
+  const btn = document.getElementById('btn-auto')
+  btn.disabled = true
+  btn.textContent = '⏳ Läuft…'
+  log('=== Auto-Durchlauf ===', 'info')
+  const at = createTimer(msg => log(msg))
+  try {
+    if (!currentFile) { log('Bitte zuerst Datei wählen!', 'warning'); return }
+    at.step('Starte Auto-Durchlauf')
+    const ok1 = await localSave();  at.step('① Lokal gespeichert')
+    if (!ok1) return
+    const ok2 = await relaySend();  at.step('② Relay-Sync')
+    if (!ok2) return
+    const ok3 = await remoteDeliver(); at.done('③ Remote-Delivery')
+    if (ok3) log('✓ Alle Schritte erfolgreich!', 'success')
+  } finally {
+    btn.disabled = false
+    btn.textContent = '▶ Alle Schritte auto'
+  }
+}
+
+document.getElementById('btn-reset').onclick = () => location.reload()
+</script>
+</body>
+</html>

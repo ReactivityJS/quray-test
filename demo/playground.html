@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuRay — Playground</title>
+<style>
+:root {
+  --bg:    #0d1117; --s1: #161b22; --s2: #1c2128; --s3: #21262d;
+  --bd:    #30363d; --bd2: #21262d;
+  --tx:    #e6edf3; --mu: #8b949e; --sub: #656d76;
+  --blue:  #58a6ff; --green: #3fb950; --yellow: #d29922;
+  --red:   #f85149; --purple: #bc8cff; --orange: #f0883e;
+  --mono:  'SF Mono','Fira Code','Cascadia Code',monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0 }
+html, body { height: 100%; overflow: hidden }
+body { font: 13px/1.5 system-ui,sans-serif; background: var(--bg); color: var(--tx);
+       display: flex; flex-direction: column }
+
+/* ── Toolbar ──────────────────────────────────────────────────── */
+#toolbar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  background: var(--s1); border-bottom: 1px solid var(--bd2); flex-shrink: 0;
+}
+.logo { font-size: 18px; font-weight: 700; color: var(--blue) }
+#relay-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sub) }
+#relay-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(63,185,80,.5) }
+#relay-dot.err { background: var(--red) }
+#relay-label { font-size: 12px; color: var(--mu) }
+.tb-sep { flex: 1 }
+.tb-btn {
+  padding: 4px 12px; border-radius: 6px; border: 1px solid var(--bd);
+  background: var(--s2); color: var(--mu); font: 12px/1 inherit; cursor: pointer;
+}
+.tb-btn:hover { border-color: var(--blue); color: var(--tx) }
+.tb-btn.run  { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600 }
+.tb-btn.run:hover { filter: brightness(1.1) }
+#me-info { font-size: 11px; color: var(--mu); font-family: var(--mono) }
+
+/* ── Layout ───────────────────────────────────────────────────── */
+#main { display: flex; flex: 1; overflow: hidden; min-height: 0 }
+
+/* ── Left: Editor + Snippets ─────────────────────────────────── */
+#left { display: flex; flex-direction: column; width: 420px; flex-shrink: 0; border-right: 1px solid var(--bd2); min-height: 0 }
+
+#editor-wrap {
+  flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative;
+}
+#editor {
+  flex: 1; width: 100%; resize: none; border: none; outline: none;
+  background: #0a0e14; color: var(--tx); font: 13px/1.6 var(--mono);
+  padding: 14px; tab-size: 2; white-space: pre; overflow: auto; min-height: 0;
+}
+#editor::selection { background: rgba(88,166,255,.3) }
+#editor-footer {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  background: var(--s2); border-top: 1px solid var(--bd2);
+}
+#run-hint { font-size: 11px; color: var(--sub) }
+kbd { background: var(--s3); border: 1px solid var(--bd); border-radius: 4px; padding: 1px 5px; font: 11px var(--mono) }
+
+/* Snippets */
+#snippets { border-top: 1px solid var(--bd2); height: 150px; overflow-y: auto }
+.snip-hdr { padding: 6px 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--sub); background: var(--s2) }
+.snip {
+  padding: 6px 12px; font-size: 12px; color: var(--mu); cursor: pointer;
+  border-bottom: 1px solid var(--bd2); display: flex; gap: 8px; align-items: baseline;
+}
+.snip:hover { background: var(--s2); color: var(--tx) }
+.snip-cat { font-size: 10px; color: var(--sub); min-width: 60px; flex-shrink: 0 }
+.snip-name { font-family: var(--mono) }
+
+/* ── Right: Tabs ──────────────────────────────────────────────── */
+#right { display: flex; flex-direction: column; flex: 1; min-width: 0 }
+
+.tab-bar {
+  display: flex; background: var(--s1); border-bottom: 1px solid var(--bd2);
+  flex-shrink: 0;
+}
+.tab {
+  padding: 8px 16px; font-size: 12px; color: var(--mu); cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all .1s;
+}
+.tab:hover { color: var(--tx) }
+.tab.active { color: var(--blue); border-color: var(--blue) }
+
+.tab-content { flex: 1; overflow: hidden; display: none }
+.tab-content.active { display: flex; flex-direction: column }
+
+/* ── Output ───────────────────────────────────────────────────── */
+#output {
+  flex: 1; overflow-y: auto; padding: 10px 14px; font: 12px/1.7 var(--mono);
+  background: #0a0e14;
+}
+.out-line { display: flex; gap: 10px; align-items: baseline; padding: 1px 0 }
+.out-ts { color: var(--sub); flex-shrink: 0 }
+.out-ok { color: var(--green) }
+.out-err { color: var(--red) }
+.out-info { color: var(--blue) }
+.out-warn { color: var(--yellow) }
+.out-result { color: var(--purple) }
+.out-plain { color: var(--tx) }
+.out-sep { border-top: 1px solid var(--bd2); margin: 4px 0 }
+#out-footer { padding: 5px 10px; background: var(--s2); border-top: 1px solid var(--bd2); display: flex; gap: 8px }
+
+/* ── DB Viewer ────────────────────────────────────────────────── */
+#db-toolbar { display: flex; gap: 8px; padding: 8px 10px; background: var(--s2); border-bottom: 1px solid var(--bd2); flex-shrink: 0 }
+#db-prefix { flex: 1; background: var(--s3); border: 1px solid var(--bd); color: var(--tx); padding: 4px 8px; border-radius: 5px; font: 12px var(--mono) }
+#db-table { flex: 1; overflow-y: auto }
+#db-table table { width: 100%; border-collapse: collapse; font-size: 11px }
+#db-table th { padding: 6px 10px; text-align: left; background: var(--s2); color: var(--sub); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--bd); position: sticky; top: 0 }
+#db-table td { padding: 5px 10px; border-bottom: 1px solid var(--bd2); vertical-align: top; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono) }
+#db-table tr.new-row { animation: flash .8s ease-out }
+#db-table .key-col { color: var(--blue) }
+#db-table .val-col { color: var(--tx) }
+#db-table .ts-col  { color: var(--sub) }
+#db-table .from-col { color: var(--mu) }
+#db-count { font-size: 11px; color: var(--sub); margin-left: auto }
+@keyframes flash { 0% { background: rgba(63,185,80,.2) } 100% { background: transparent } }
+
+/* ── Log ──────────────────────────────────────────────────────── */
+#log-wrap { flex: 1; overflow-y: auto; font: 11px/1.6 var(--mono); padding: 8px 12px; background: #0a0e14 }
+.log-entry { display: flex; gap: 8px; padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,.03) }
+.log-ts  { color: var(--sub); flex-shrink: 0 }
+.log-ev  { color: var(--mu); flex-shrink: 0; min-width: 100px }
+.log-key { color: var(--blue); flex-shrink: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.log-val { color: var(--tx); opacity: .7; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.log-ev.ev-put   { color: var(--green) }
+.log-ev.ev-del   { color: var(--red) }
+.log-ev.ev-queue { color: var(--yellow) }
+.log-ev.ev-net   { color: var(--purple) }
+.log-ev.ev-blob  { color: var(--orange) }
+#log-filter { display: flex; gap: 6px; padding: 6px 10px; background: var(--s2); border-top: 1px solid var(--bd2); flex-shrink: 0 }
+.log-filter-btn { padding: 2px 8px; border-radius: 10px; border: 1px solid var(--bd); background: none; color: var(--mu); font: 11px inherit; cursor: pointer }
+.log-filter-btn.on { background: var(--s3); color: var(--tx) }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px }
+::-webkit-scrollbar-track { background: transparent }
+::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 3px }
+
+/* Context helper pill */
+#ctx-pill {
+  position: absolute; right: 10px; top: 10px;
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 10px;
+  font: 10px var(--mono); color: var(--mu); padding: 2px 8px; pointer-events: none;
+}
+
+/* ── REPL Console ─────────────────────────────────────────────── */
+#repl-wrap {
+  border-top: 2px solid var(--blue); background: #0a0e14; flex-shrink: 0;
+  display: flex; flex-direction: column;
+}
+#repl-history {
+  max-height: 160px; overflow-y: auto; padding: 6px 10px;
+  font: 12px/1.6 var(--mono);
+}
+.repl-entry { display: flex; gap: 8px; align-items: baseline }
+.repl-prompt { color: var(--blue); flex-shrink: 0 }
+.repl-cmd { color: var(--tx) }
+.repl-res { color: var(--purple); margin-left: 18px }
+.repl-err { color: var(--red); margin-left: 18px }
+#repl-input-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-top: 1px solid var(--bd2);
+}
+#repl-prompt-label { color: var(--blue); font: 13px var(--mono); flex-shrink: 0 }
+#repl-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--tx); font: 13px var(--mono); caret-color: var(--blue);
+}
+#repl-input::placeholder { color: var(--sub) }
+</style>
+</head>
+<body>
+
+<!-- ── Toolbar ──────────────────────────────────────────────── -->
+<div id="toolbar">
+  <span class="logo">⬡ Playground</span>
+  <div id="relay-dot"></div>
+  <span id="relay-label">Verbinde…</span>
+  <span class="tb-sep"></span>
+  <span id="me-info"></span>
+  <button class="tb-btn" id="btn-clear-out">⌫ Output</button>
+  <button class="tb-btn" id="btn-clear-db">🗄 IDB leeren</button>
+  <button class="tb-btn" id="btn-cache">🗑 Cache</button>
+  <button class="tb-btn run" id="btn-run">▶ Ausführen <kbd>⌘↵</kbd></button>
+</div>
+
+<!-- ── Main ─────────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- Left: Editor -->
+  <div id="left">
+    <div id="editor-wrap">
+      <div id="ctx-pill">qr · me · db · peers · KEY · sleep</div>
+      <textarea id="editor" spellcheck="false" placeholder="// QuRay Playground — schreibe JavaScript
+// Verfügbar: qr, me, db, peers, KEY, sleep(ms)
+
+// Beispiel:
+const r = await db.get('~' + me.pub)
+return r?.data ?? r"></textarea>
+      <div id="editor-footer">
+        <span id="run-hint">Ausführen: <kbd>Ctrl+Enter</kbd> oder <kbd>⌘+Enter</kbd></span>
+        <span style="flex:1"></span>
+        <span id="line-col" style="font-size:11px;color:var(--sub)">1:1</span>
+      </div>
+    </div>
+
+    <!-- REPL Console -->
+    <div id="repl-wrap">
+      <div id="repl-history"></div>
+      <div id="repl-input-row">
+        <span id="repl-prompt-label">›</span>
+        <input id="repl-input" placeholder="Ausdruck eingeben… (Enter = ausführen, ↑↓ = History)" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div id="snippets">
+      <div class="snip-hdr">Snippets — Klick lädt in Editor</div>
+    </div>
+  </div>
+
+  <!-- Right: Tabs -->
+  <div id="right">
+    <div class="tab-bar">
+      <div class="tab active" data-tab="output">Output</div>
+
+      <div class="tab" data-tab="log">Event Log</div>
+      <div class="tab" data-tab="api">API Docs</div>
+      <div class="tab" data-tab="dbfull">DB Vollbild</div>
+    </div>
+
+    <!-- Output Tab -->
+    <div class="tab-content active" id="tab-output">
+      <div id="output"></div>
+      <div id="out-footer">
+        <span style="font-size:11px;color:var(--sub)">return → Ergebnis anzeigen · console.log → direkt ausgeben</span>
+      </div>
+    </div>
+
+    <!-- API Docs Tab -->
+    <div class="tab-content" id="tab-api">
+      <iframe src="/docs/api.html" style="flex:1;width:100%;height:100%;border:none;background:#0d1117"
+              id="api-frame"></iframe>
+    </div>
+
+    <!-- Full DB Viewer Tab -->
+    <div class="tab-content" id="tab-dbfull">
+      <iframe src="/demo/db-viewer.html" style="flex:1;width:100%;height:100%;border:none;background:#0d1117"
+              id="dbfull-frame" loading="lazy"></iframe>
+    </div>
+
+    <!-- Log Tab -->
+    <div class="tab-content" id="tab-log">
+      <div id="log-wrap"></div>
+      <div id="log-filter">
+        <span style="font-size:11px;color:var(--sub);margin-right:4px">Filter:</span>
+        <button class="log-filter-btn on" data-filter="put">put</button>
+        <button class="log-filter-btn on" data-filter="del">del</button>
+        <button class="log-filter-btn on" data-filter="queue">queue</button>
+        <button class="log-filter-btn on" data-filter="net">net</button>
+        <button class="log-filter-btn on" data-filter="blob">blob</button>
+        <span style="flex:1"></span>
+        <button class="tb-btn" id="btn-clear-log">Leeren</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ── Snippets ─────────────────────────────────────────────────────────────────
+const SNIPPETS = [
+  { cat: 'Profil',  name: 'me.alias lesen',      code: `// Eigenes Profil lesen\nreturn {\n  pub:   me.pub.slice(0,16) + '…',\n  epub:  me.epub?.slice(0,16) + '…',\n  alias: me.alias,\n}` },
+  { cat: 'Profil',  name: 'Alias setzen',         code: `// Alias ändern (schreibt ~pub in DB)\nme.alias = 'MeinName'\nreturn 'Alias gesetzt: ' + me.alias` },
+  { cat: 'Profil',  name: 'Profil komplett',      code: `// Eigenes Profil via QuNode\nreturn await qr.node.user.read()` },
+
+  { cat: 'DB',      name: 'db.put + db.get',      code: `// Daten schreiben und lesen\nconst key = '~' + me.pub + '/test/hello'\nawait db.put(key, { text: 'Hallo Welt!', ts: Date.now() })\nconst q = await db.get(key)\nreturn q?.data ?? q` },
+  { cat: 'DB',      name: 'db.query Prefix',      code: `// Alle eigenen Keys abfragen\nconst rows = await db.query('~' + me.pub + '/')\nreturn rows.map(q => ({ key: q.key, data: q.data }))` },
+  { cat: 'DB',      name: 'db.on Listener',       code: `// Reaktiv auf DB-Änderungen hören\nconst off = db.on('~' + me.pub + '/test/**', (qubit, ctx) => {\n  console.log('Geändert:', ctx.event, qubit?.data)\n})\n// off() zum Abmelden\nreturn 'Listener registriert — put etwas in ~/test/**'` },
+  { cat: 'DB',      name: 'Key-Schema',            code: `// KEY-Helfer für typsichere Keys\nreturn {\n  userNode:  KEY.userNode(me.pub),\n  blobKey:   KEY.user(me.pub).blob('abc123'),\n  spaceChat: KEY.space('room42').entry('chat', 'msg1'),\n  inbox:     KEY.inbox(me.pub).entry('sig', 'inv1'),\n}` },
+
+  { cat: 'Peers',   name: 'Online Peers',         code: `// Alle bekannten und online Peers\nreturn {\n  all:    qr.peers.all.map(p => p.alias || p.pub.slice(0,12)),\n  online: qr.peers.online.map(p => p.alias || p.pub.slice(0,12)),\n  count:  qr.peers.count,\n}` },
+  { cat: 'Peers',   name: 'PeerMap onChange',     code: `// Reaktiv: feuert wenn Peer sich ändert\nconst off = qr.peers.onChange(() => {\n  console.log('Peers geändert:', qr.peers.count, 'bekannt')\n})\nreturn 'onChange registriert (läuft bis Reload)'` },
+
+  { cat: 'Inbox',   name: 'Inbox lesen',          code: `// Alle Inbox-Einträge lesen\nconst rows = await db.query('>' + me.pub + '/')\nreturn rows.slice(-5).map(q => ({\n  from: q.from?.slice(0,12),\n  data: q.data,\n  ts:   new Date(q.ts).toLocaleString()\n}))` },
+  { cat: 'Inbox',   name: 'inbox() abonnieren',   code: `// qr.inbox() = db.on('>me.pub/**')\nconst off = qr.inbox((data, qubit) => {\n  console.log('Inbox:', qubit.from?.slice(0,12), data)\n})\nreturn 'Inbox-Listener aktiv'` },
+  { cat: 'Inbox',   name: 'send() an Peer',       code: `// Nachricht an sich selbst senden (Test)\nawait qr.send(me.pub, {\n  type: 'test.ping',\n  text: 'Hallo von mir!',\n  ts:   Date.now()\n})\nreturn 'Gesendet! Inbox-Tab prüfen.'` },
+
+  { cat: 'Space',   name: 'Space anlegen',        code: `// Gemeinsamen Datenraum erstellen\nconst spaceId = '@' + crypto.randomUUID()\nconst space   = qr.space(spaceId)\nawait space.put('~acl',  { owner: me.pub, writers: '*' })\nawait space.put('~meta', { name: 'Mein Space', created: Date.now() })\nconsole.log('Space:', spaceId)\nreturn 'Space erstellt — ID in Console'` },
+  { cat: 'Space',   name: 'Space lesen',          code: `// Ersten Space des Users lesen\nconst rows = await db.query('@')\nconst spaceId = rows[0]?.key?.split('/')[0]\nif (!spaceId) return 'Kein Space gefunden'\nconst space = qr.space(spaceId)\nreturn {\n  meta: await space.get('~meta'),\n  acl:  await space.get('~acl'),\n}` },
+
+  { cat: 'Delivery', name: 'Delivery Status',    code: `// Eigener User-Node Delivery-Status\nconst key = KEY.userNode(me.pub)\nconst d   = await db.delivery?.get(key)\nreturn d ?? 'Kein Delivery-State gespeichert'` },
+
+  { cat: 'Queue',   name: 'Queue Tasks',          code: `// Aktuelle Queue-Tasks anzeigen\nconst tasks = []\ndb.queue?.on('task.enqueue', t => tasks.push(t))\nawait sleep(100)\nreturn { pending: tasks.length, tasks: tasks.slice(0,5) }` },
+
+  { cat: 'Blobs',   name: 'Blob status',          code: `// Alle bekannten Blob-Hashes\n// (aus Blob-Status-Map — nur gestagete/guploadete)\nreturn 'Nutze db.blobs.status(hash) für spezifischen Hash'` },
+
+  { cat: 'Krypto',  name: 'Signatur testen',      code: `// Signieren und verifizieren\nconst msg = 'Hallo QuRay!'\nconst sig = await me.sign(msg)\nconst ok  = await me.verify(msg, sig, me.pub)\nreturn { message: msg, signature: sig.slice(0,20)+'…', valid: ok }` },
+  { cat: 'Krypto',  name: 'Selbst-Verschlüsselung', code: `// An sich selbst verschlüsseln\nconst plain = JSON.stringify({ secret: 'Geheimnis 42' })\nconst enc   = await me.encrypt(plain, null)\nconst dec   = await me.decrypt(enc)\nreturn { original: plain, decrypted: dec }` },
+  { cat: 'Krypto',  name: 'pub64 Konvertierung',  code: `// pub64 — URL-sicheres Format\nreturn {\n  pub64:   me.pub,\n  pub_len: me.pub.length,\n  is_url_safe: !/[+\\/=]/.test(me.pub),\n  short:   me.pub.slice(0,20)+'…',\n}` },
+
+  { cat: 'Utils',   name: 'sleep(ms)',             code: `// Warten und dann etwas tun\nconsole.log('Start')\nawait sleep(500)\nconsole.log('Nach 500ms')\nawait sleep(500)\nreturn 'Fertig nach 1000ms'` },
+  { cat: 'Utils',   name: 'Relay-Status',          code: `// Relay HTTP API abfragen\nconst base = location.origin\nconst [peers, sync] = await Promise.all([\n  fetch(base+'/api/peers').then(r=>r.json()),\n  fetch(base+'/api/sync?prefix=~&since=0&keysonly=1').then(r=>r.json()),\n])\nreturn {\n  online:   peers.peers?.length ?? 0,\n  qubits:   sync.count ?? '?',\n}` },
+]
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+let qr, me, db, peers
+
+async function init() {
+  try {
+    const { default: QuRay, registerComponents } = await import('../dist/quray.dev.js?pg=' + Date.now())
+    const relayUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host
+    outInfo('Verbinde mit ' + relayUrl + ' …')
+
+    qr = await QuRay.init({ relay: relayUrl, alias: 'Playground', ui: false })
+    registerComponents(qr.db, { me: qr.me, peers: qr.peers, net: qr._.net })
+    me     = qr.me
+    db     = qr.db
+    peers  = qr.peers
+
+    // Expose to window for console access
+    window.qr = qr; window.me = me; window.db = db; window.peers = peers
+    window.KEY = (await import('../src/core/qubit.js?pg=' + Date.now())).KEY
+    window.sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+    document.getElementById('me-info').textContent =
+      'pub: ' + me.pub.slice(0, 16) + '…  alias: ' + (me.alias || '–')
+
+    // Relay status
+    qr._.net.state$.on(states => {
+      const ok = Object.values(states).some(s => s === 'connected')
+      const dot = document.getElementById('relay-dot')
+      dot.className = ok ? 'ok' : 'err'
+      document.getElementById('relay-label').textContent = ok ? 'Relay verbunden' : 'Offline'
+      if (ok) outOk('Relay verbunden — qr, me, db, peers verfügbar')
+    }, true)
+
+    // Event log
+    setupEventLog()
+    // DB live watch
+
+    outOk('QuRay bereit. Globale Variablen: qr · me · db · peers · KEY · sleep')
+    outInfo('Tipp: qr.me.pub, await db.put(key, data), await db.query(\'~\')')
+  } catch (e) {
+    outErr('Init-Fehler: ' + e.message)
+    console.error(e)
+  }
+}
+
+// ── Output ────────────────────────────────────────────────────────────────────
+const output = document.getElementById('output')
+const ts = () => new Date().toLocaleTimeString('de-DE', { hour12: false })
+
+function outLine(text, cls) {
+  const d = document.createElement('div')
+  d.className = 'out-line'
+  d.innerHTML = `<span class="out-ts">[${ts()}]</span><span class="${cls}">${escHtml(String(text))}</span>`
+  output.appendChild(d)
+  output.scrollTop = output.scrollHeight
+}
+function outSep() {
+  const d = document.createElement('div'); d.className = 'out-sep'
+  output.appendChild(d)
+}
+function outOk(t)     { outLine(t, 'out-ok') }
+function outErr(t)    { outLine(t, 'out-err') }
+function outInfo(t)   { outLine(t, 'out-info') }
+function outWarn(t)   { outLine(t, 'out-warn') }
+function outResult(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v, null, 2)
+  outLine('← ' + s.slice(0, 2000), 'out-result')
+}
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+// ── Code Execution ────────────────────────────────────────────────────────────
+async function runCode() {
+  const code = document.getElementById('editor').value.trim()
+  if (!code) return
+  outSep()
+  outInfo('▶ ' + code.split('\n')[0].slice(0, 80) + (code.includes('\n') ? '…' : ''))
+
+  // Patch console.log for output capture
+  const origLog = console.log
+  const origErr = console.error
+  const origWarn = console.warn
+  console.log  = (...a) => { outLine(a.map(x => JSON.stringify(x) ?? String(x)).join(' '), 'out-plain'); origLog(...a) }
+  console.error = (...a) => { outErr(a.map(x=>String(x)).join(' ')); origErr(...a) }
+  console.warn  = (...a) => { outWarn(a.map(x=>String(x)).join(' ')); origWarn(...a) }
+
+  try {
+    // AsyncFunction constructor: code is the body directly — no string embedding
+    // This fixes multiline code and template literals with newlines
+    const AsyncFn = Object.getPrototypeOf(async function(){}).constructor
+    // Auto-return single expressions (e.g. "me.pub", "await db.get(key)")
+    const isStatement = code.includes('\n') ||
+      /^(const|let|var|if|for|while|await|return|import|async|try|throw)\b/.test(code.trim())
+    const body = isStatement ? code : 'return (' + code + ')'
+    const fn = new AsyncFn('qr','me','db','peers','KEY','sleep', '"use strict"\n' + body)
+    const result = await fn(qr, me, db, peers, window.KEY, window.sleep)
+    if (result !== undefined) outResult(result)
+    } catch (e) {
+    outErr('✗ ' + e.message)
+    console.error(e)
+  } finally {
+    console.log  = origLog
+    console.error = origErr
+    console.warn  = origWarn
+  }
+}
+
+// ── Snippets ──────────────────────────────────────────────────────────────────
+const snippetEl = document.getElementById('snippets')
+SNIPPETS.forEach(s => {
+  const d = document.createElement('div')
+  d.className = 'snip'
+  d.innerHTML = `<span class="snip-cat">${s.cat}</span><span class="snip-name">${s.name}</span>`
+  d.addEventListener('click', () => {
+    document.getElementById('editor').value = s.code
+    switchTab('output')
+  })
+  snippetEl.appendChild(d)
+})
+
+// ── DB Viewer ─────────────────────────────────────────────────────────────────
+
+// ── Event Log ─────────────────────────────────────────────────────────────────
+const LOG_FILTERS = new Set(['put', 'del', 'queue', 'net', 'blob'])
+
+function setupEventLog() {
+  if (!db) return
+  const logWrap = document.getElementById('log-wrap')
+
+  function addLog(event, key, val, filterKey) {
+    if (!LOG_FILTERS.has(filterKey)) return
+    if (document.getElementById('tab-log').style.display === 'none' &&
+        !document.getElementById('tab-log').classList.contains('active')) {
+      // Still add but limit to 500 entries
+      if (logWrap.children.length > 500) logWrap.removeChild(logWrap.firstChild)
+    }
+    const d = document.createElement('div')
+    d.className = 'log-entry'
+    const evCls = `log-ev ev-${filterKey}`
+    d.innerHTML = `
+      <span class="log-ts">${ts()}</span>
+      <span class="${evCls}">${event}</span>
+      <span class="log-key" title="${key}">${key.slice(0, 40)}</span>
+      <span class="log-val">${escHtml(String(val ?? '').slice(0, 120))}</span>`
+    logWrap.appendChild(d)
+    if (logWrap.children.length > 800) logWrap.removeChild(logWrap.firstChild)
+    logWrap.scrollTop = logWrap.scrollHeight
+  }
+
+  // DB events
+  db.on('**', (qubit, ctx) => {
+    const data = qubit?.data ?? qubit
+    const valStr = data === null ? 'null'
+                 : typeof data === 'object' ? JSON.stringify(data).slice(0, 80)
+                 : String(data).slice(0, 80)
+    const filterKey = ctx?.key?.startsWith('blobs/') ? 'blob'
+                    : ctx?.event === 'del' ? 'del' : 'put'
+    addLog(ctx?.event || 'put', ctx?.key || qubit?.key || '?', valStr, filterKey)
+  })
+
+  // Queue events
+  if (db.queue) {
+    db.queue.on('task.enqueue',  t => addLog('enqueue',  t.action, `id:${t.id?.slice(0,8)}`, 'queue'))
+    db.queue.on('task.running',  t => addLog('running',  t.action, `try:${t.attemptCount}`, 'queue'))
+    db.queue.on('task.done',     t => addLog('done ✓',   t.action, '', 'queue'))
+    db.queue.on('task.failed',   t => addLog('failed ✗', t.action, t.error ?? '', 'queue'))
+    db.queue.on('task.progress', t => addLog(`progress ${t.progress}%`, t.action, t.data?.hash?.slice(0,12) ?? '', 'queue'))
+  }
+
+  // Net events
+  if (qr?._?.net) {
+    qr._.net.on('message', pkt => {
+      const q = pkt?.payload ?? pkt
+      addLog('ws:recv', q?.type ?? '?', `from:${(q?.from ?? '').slice(0,10)}`, 'net')
+    })
+  }
+}
+
+// ── Filter Buttons ────────────────────────────────────────────────────────────
+document.querySelectorAll('.log-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter
+    if (LOG_FILTERS.has(f)) { LOG_FILTERS.delete(f); btn.classList.remove('on') }
+    else                    { LOG_FILTERS.add(f);    btn.classList.add('on') }
+  })
+})
+document.getElementById('btn-clear-log').addEventListener('click', () => {
+  document.getElementById('log-wrap').innerHTML = ''
+})
+
+// ── REPL Console ─────────────────────────────────────────────────────────────
+const replHistory = []
+let replHistoryIdx = -1
+
+function replOut(cmd, result, isErr = false) {
+  const h = document.getElementById('repl-history')
+  // Command line
+  const cmdEl = document.createElement('div')
+  cmdEl.className = 'repl-entry'
+  cmdEl.innerHTML = `<span class="repl-prompt">›</span><span class="repl-cmd">${escHtml(cmd.slice(0,120))}</span>`
+  h.appendChild(cmdEl)
+  // Result
+  if (result !== undefined) {
+    const resEl = document.createElement('div')
+    resEl.className = isErr ? 'repl-err' : 'repl-res'
+    const s = result === null ? 'null'
+            : typeof result === 'object' ? JSON.stringify(result, null, 1).slice(0, 300)
+            : String(result)
+    resEl.textContent = (isErr ? '✗ ' : '← ') + s
+    h.appendChild(resEl)
+  }
+  h.scrollTop = h.scrollHeight
+}
+
+async function runRepl(cmd) {
+  if (!cmd.trim()) return
+  // Add to history (deduplicate consecutive)
+  if (replHistory[0] !== cmd) replHistory.unshift(cmd)
+  if (replHistory.length > 50) replHistory.pop()
+  replHistoryIdx = -1
+
+  const origLog = console.log
+  const origWarn = console.warn
+  // Capture console.log in repl too
+  console.log  = (...a) => { replOut(cmd, a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ')); origLog(...a); cmd = '(log)' }
+  console.warn = (...a) => { replOut('⚠', a.join(' ')); origWarn(...a) }
+
+  try {
+    const AsyncFn = Object.getPrototypeOf(async function(){}).constructor
+    // Auto-return single expressions
+    const isStatement = /^(const|let|var|if|for|while|return|import|async|try|throw|await )/.test(cmd.trim()) && !cmd.trim().startsWith('await (')
+    const body = isStatement ? cmd : 'return (' + cmd + ')'
+    const fn = new AsyncFn('qr','me','db','peers','KEY','sleep', '"use strict"\n' + body)
+    const result = await fn(qr, me, db, peers, window.KEY, window.sleep)
+    replOut(cmd, result)
+    // Also show in main output
+    if (result !== undefined) { outSep(); outInfo('› ' + cmd.slice(0,80)); outResult(result) }
+  } catch(e) {
+    replOut(cmd, e.message, true)
+    outSep(); outInfo('› ' + cmd.slice(0,80)); outErr('✗ ' + e.message)
+  } finally {
+    console.log  = origLog
+    console.warn = origWarn
+  }
+}
+
+document.getElementById('repl-input').addEventListener('keydown', async (e) => {
+  const input = e.target
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    const cmd = input.value.trim()
+    if (!cmd) return
+    input.value = ''
+    await runRepl(cmd)
+    switchTab('output')
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (replHistoryIdx < replHistory.length - 1) {
+      replHistoryIdx++
+      input.value = replHistory[replHistoryIdx]
+      // Move cursor to end
+      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0)
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (replHistoryIdx > 0) {
+      replHistoryIdx--
+      input.value = replHistory[replHistoryIdx]
+    } else {
+      replHistoryIdx = -1
+      input.value = ''
+    }
+  }
+})
+
+// ── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name))
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name))
+  if (name === 'db') loadDb()
+}
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchTab(t.dataset.tab))
+})
+
+// ── Editor Controls ───────────────────────────────────────────────────────────
+const editor = document.getElementById('editor')
+
+editor.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault(); runCode()
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const start = editor.selectionStart, end = editor.selectionEnd
+    editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end)
+    editor.selectionStart = editor.selectionEnd = start + 2
+  }
+})
+
+editor.addEventListener('keyup', updateCursor)
+editor.addEventListener('click', updateCursor)
+
+function updateCursor() {
+  const text = editor.value.substring(0, editor.selectionStart)
+  const lines = text.split('\n')
+  document.getElementById('line-col').textContent =
+    `${lines.length}:${lines[lines.length - 1].length + 1}`
+}
+
+document.getElementById('btn-run').addEventListener('click', runCode)
+document.getElementById('btn-clear-out').addEventListener('click', () => {
+  document.getElementById('output').innerHTML = ''
+})
+
+// ── Toolbar Buttons ───────────────────────────────────────────────────────────
+document.getElementById('btn-cache').addEventListener('click', async () => {
+  const keys = await caches.keys().catch(() => [])
+  await Promise.all(keys.map(k => caches.delete(k))).catch(() => {})
+  outInfo(`Cache geleert (${keys.length} Einträge) — lade neu…`)
+  setTimeout(() => location.reload(true), 700)
+})
+
+document.getElementById('btn-clear-db').addEventListener('click', async () => {
+  const dbs = await indexedDB.databases?.() ?? []
+  const qdbs = dbs.filter(d => d.name?.startsWith('quray'))
+  await Promise.all(qdbs.map(d => new Promise(r => {
+    const req = indexedDB.deleteDatabase(d.name)
+    req.onsuccess = req.onerror = r
+  })))
+  outWarn(`${qdbs.length} IDB(s) gelöscht — bitte Seite neu laden`)
+})
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+outInfo('QuRay Playground startet…')
+outInfo('Tipp: Snippet rechts klicken → Snippet in Editor → ▶ Ausführen')
+init()
+</script>
+</body>
+</html>

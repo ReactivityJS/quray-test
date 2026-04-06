@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Demo-Galerie</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.hero{padding:20px 0 8px}.hero h1{margin:0 0 6px;font-size:26px}.hero p{color:var(--muted);max-width:60ch}
+.demo-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));margin-top:18px}
+.demo-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;
+  display:flex;flex-direction:column;gap:8px;transition:border-color .15s}
+.demo-card:hover{border-color:var(--primary)}
+.demo-card h2{margin:0;font-size:16px}.demo-card h2 a{color:var(--text);text-decoration:none}
+.demo-card h2 a:hover{color:var(--primary)}.demo-card p{margin:0;color:var(--muted);font-size:13px;flex:1}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(66,211,146,.14);color:var(--success);border:1px solid rgba(66,211,146,.3)}
+.session-bar{margin-top:18px;padding:12px 16px;border-radius:12px;background:var(--surface);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>QuRay Demo-Galerie</h1>
+  <p>Live-Demos auf Basis des echten Framework-Sourcecodes — alle interaktiv.</p>
+</div>
+
+<div class="session-bar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="status-pill warn" id="relay-pill">○ Kein Relay</span>
+    <span class="small-text" id="relay-url-label"></span>
+  </div>
+  <div class="demo-actions" style="gap:8px">
+    <button id="btn-connect" class="primary" style="font-size:12px;padding:6px 10px">Relay verbinden…</button>
+    <button id="btn-clear" style="font-size:12px;padding:6px 10px">Session löschen</button>
+  </div>
+</div>
+<div id="connect-form" hidden style="margin-top:10px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input id="r-url" class="demo-input" style="flex:2;min-width:200px" placeholder="ws://…" id="r-url">
+    <input id="r-key" class="demo-input" style="flex:1;min-width:130px" placeholder="API-Key (optional)">
+    <button id="btn-save" class="success">Speichern</button>
+  </div>
+</div>
+
+<div class="demo-grid">
+  <div class="demo-card"><h2><a href="/demo/blob-test.html">🗂 Blob-Test</a></h2>
+    <p>Lokal speichern, Relay-Sync und Remote-Delivery. Hash, Progress, Status-Tracker.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/bindings-test.html">⚡ Bindings</a></h2>
+    <p>Inline-Bindings, Zwei-Wege-Input, Click-to-Edit-Listen, qu-bind Templates.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/todo.html">✅ Shared ToDo</a></h2>
+    <p>Gemeinsame Aufgabenliste mit Add/Edit/Delete und optionaler E2E-Verschlüsselung.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/db-viewer.html">🔍 DB-Viewer</a></h2>
+    <p>Alle lokalen QuBits suchen, filtern, sortieren. Blobs einsehen. Einträge anlegen und löschen.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/people.html">👥 People</a></h2>
+    <p>User per <code>remoteQuery</code> vom Relay laden — kein lokaler DB-Sync.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/status.html">🟢 User-Status</a></h2>
+    <p>Online/Offline via QuPresence. Sichtbarkeit via self-encrypted Status-QuBit.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/delivery-status.html">📬 Delivery-Status</a></h2>
+    <p>6-stufiger Delivery-Funnel reaktiv via <code>scope:delivery</code>.</p><span class="badge">✓ aktiv</span></div>
+    <div class="demo-card"><h2><a href="/demo/cms.html">📝 CMS / Blog</a></h2>
+    <p>QuCMS + QuRouter: serverless Blog/CMS mit WYSIWYG-Editor, Templates als QuBits, ACL-gesichertem Admin.</p><span class="badge">✓ aktiv</span></div>
+  <div class="demo-card"><h2><a href="/demo/base.html">🧪 Base</a></h2>
+    <p>Vorgefertigte Queries, Init-Timing, Framework-Introspection.</p><span class="badge">✓ aktiv</span></div>
+</div>
+
+<section style="margin-top:28px;padding-top:14px;border-top:1px solid var(--border)">
+  <div style="font-size:13px;opacity:.45;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span>Archiv:</span>
+    <a class="button-link" href="/demo/feature-lab.html" style="font-size:12px;padding:4px 8px">Feature Lab</a>
+    <a class="button-link" href="/demo/blobs-live.html"  style="font-size:12px;padding:4px 8px">Blob Live</a>
+    <a class="button-link" href="/demo/playground.html"  style="font-size:12px;padding:4px 8px">Playground</a>
+  </div>
+</section>
+
+<script>
+const K='QuDB_relay_session'
+const gS=()=>{try{return JSON.parse(sessionStorage.getItem(K))}catch{return null}}
+const sS=d=>{try{sessionStorage.setItem(K,JSON.stringify({...(gS()??{}),...d,savedAt:Date.now()}))}catch{}}
+function ref(){
+  const c=gS()
+  const ok=!!c?.relayUrl
+  // Smart default: same host, matching WS protocol
+  const def=(location.protocol==='https:'?'wss:':'ws:')+'//'+location.host
+  document.getElementById('relay-pill').className=`status-pill ${ok?'ok':'warn'}`
+  document.getElementById('relay-pill').textContent=ok?'⬤ Relay verbunden':'○ Kein Relay'
+  document.getElementById('relay-url-label').textContent=c?.relayUrl??''
+  document.getElementById('btn-connect').textContent=ok?'Relay ändern…':'Relay verbinden…'
+  document.getElementById('r-url').value=c?.relayUrl??def
+  if(c?.apiKey)document.getElementById('r-key').value=c.apiKey??''
+}
+document.getElementById('btn-connect').onclick=()=>{const f=document.getElementById('connect-form');f.hidden=!f.hidden}
+document.getElementById('btn-clear').onclick=()=>{sessionStorage.removeItem(K);ref()}
+document.getElementById('btn-save').onclick=()=>{
+  const url=document.getElementById('r-url').value.trim()
+  const key=document.getElementById('r-key').value.trim()||null
+  if(url){sS({relayUrl:url,apiKey:key});document.getElementById('connect-form').hidden=true}
+  ref()
+}
+ref()
+</script>
+</body>
+</html>

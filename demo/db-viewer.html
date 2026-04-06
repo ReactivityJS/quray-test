@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay DB-Viewer</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.filter-bar input,.filter-bar select{background:#0b1016;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;font:inherit}
+#qbt{width:100%;border-collapse:collapse;font-size:12px}
+#qbt th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+#qbt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;
+  word-break:break-all;max-width:220px}
+#qbt tr:hover td{background:rgba(255,255,255,.03)}
+.tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--border);color:var(--muted)}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--success);
+  animation:pulse 1.5s ease-in-out infinite;margin-right:4px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>DB-Viewer</h1>
+    <p>Reaktive Ansicht aller lokalen QuBits — automatisches Update via <code>db.on('**')</code>.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button class="success" id="btn-seed">+ Seed</button>
+    <button class="primary" id="btn-new">+ Eintrag</button>
+  </div>
+</header>
+
+<section class="metric-grid" style="margin-bottom:14px">
+  <div class="metric"><div class="metric-label">Einträge gesamt</div><div class="metric-value" id="m-total">0</div></div>
+  <div class="metric"><div class="metric-label">Angezeigt</div><div class="metric-value" id="m-shown">0</div></div>
+  <div class="metric"><div class="metric-label">Reaktiv</div>
+    <div class="metric-value" style="font-size:14px"><span class="live-dot"></span>live</div></div>
+  <div class="metric"><div class="metric-label">Init</div><div class="metric-value" id="m-init" style="font-size:13px">—</div></div>
+</section>
+
+<!-- Create form -->
+<div id="new-form" hidden class="card" style="padding:12px;margin-bottom:12px">
+  <h2 style="font-size:14px;margin:0 0 10px">Neuer Eintrag</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input id="nf-key" class="demo-input" style="flex:2;min-width:180px" placeholder="Key  z.B. @demo/notes/001">
+    <input id="nf-val" class="demo-input" style="flex:2;min-width:180px" placeholder='Wert (JSON)  z.B. {"text":"Hallo"}'>
+    <button class="success" id="btn-save-new">Speichern</button>
+    <button id="btn-cancel-new">✖</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="filter-bar">
+    <!-- Reaktivitätsmodus wählen -->
+    <select id="f-mode" title="Reaktivitätsmodus">
+      <option value="live-initial">● Initial + Live</option>
+      <option value="live-only">◐ Nur Live-Updates</option>
+      <option value="static">○ Einmalig (static)</option>
+    </select>
+    <input id="f-prefix" placeholder="Prefix-Filter" style="flex:1;min-width:140px">
+    <input id="f-search" placeholder="Freitext" style="flex:1;min-width:120px">
+    <select id="f-order"><option value="ts-desc">↓ Neu</option><option value="ts">↑ Alt</option><option value="key">A-Z Key</option></select>
+    <input id="f-limit" type="number" value="200" min="1" max="5000" style="width:70px">
+    <button id="btn-apply" class="primary">Anwenden</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table id="qbt">
+      <thead><tr>
+        <th>Key</th><th>Type</th><th>Data</th><th>TS</th><th>Quelle</th><th></th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Lade…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import QuRay from '../src/quray.js'
+import { createTimer } from './lib/demo-runtime.js'
+
+const t = createTimer(msg => document.getElementById('m-init').textContent = msg.split('] ')[1]??msg)
+t.step('Start')
+const qr = await QuRay.init({ alias:'DB-Viewer', ui:false, binding:false })
+window.qr = qr
+t.done('QuRay.init')
+document.getElementById('m-init').textContent = Math.round(t.elapsed())+'ms'
+
+// Seed
+await qr.db.put('@demo/notes/001', { text:'Beispiel-Notiz 1', priority:1 })
+await qr.db.put('@demo/notes/002', { text:'Beispiel-Notiz 2', tags:['wichtig'] })
+await qr.db.put(`~${qr.me.pub64}/alias`, 'DB-Viewer User')
+
+// ── Zentrale reaktive State-Map ───────────────────────────────────────────────
+// Prinzip: Map gepflegt via db.on(); Render liest aus Map
+const itemMap = new Map()  // key → qubit
+let currentOff = null      // off() für aktive Subscription
+let staticMode = false
+
+function applyToMap(q, event) {
+  if (event === 'del' || q.deleted) itemMap.delete(q.key)
+  else itemMap.set(q.key, q)
+}
+
+// Rendern aus Map mit Client-Filter/Sort
+function renderTable() {
+  const search = document.getElementById('f-search').value.toLowerCase()
+  const order  = document.getElementById('f-order').value
+  const limit  = parseInt(document.getElementById('f-limit').value) || 200
+
+  let rows = [...itemMap.values()]
+  if (search) rows = rows.filter(q =>
+    q.key.toLowerCase().includes(search) ||
+    JSON.stringify(q.data??'').toLowerCase().includes(search)
+  )
+
+  // Sort
+  if (order === 'ts-desc') rows.sort((a,b)=>b.ts-a.ts)
+  else if (order === 'key') rows.sort((a,b)=>a.key.localeCompare(b.key))
+  else rows.sort((a,b)=>a.ts-b.ts)
+  if (rows.length > limit) rows = rows.slice(0, limit)
+
+  document.getElementById('m-total').textContent = String(itemMap.size)
+  document.getElementById('m-shown').textContent  = String(rows.length)
+
+  const tbody = document.getElementById('tbody')
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Keine Einträge</td></tr>'
+    return
+  }
+  tbody.innerHTML = rows.map(q => {
+    const d    = JSON.stringify(q.data??null)
+    const data = d.length > 100 ? d.slice(0,100)+'…' : d
+    const ts   = q.ts ? new Date(q.ts).toLocaleTimeString() : '—'
+    const src  = q._status ?? (q.from ? 'remote' : 'local')
+    return `<tr>
+      <td style="color:var(--primary);font-family:var(--mono);font-size:11px">${q.key}</td>
+      <td><span class="tag">${q.type??'—'}</span></td>
+      <td style="font-family:var(--mono);color:var(--muted);font-size:11px">${data}</td>
+      <td style="color:var(--muted);white-space:nowrap;font-size:11px">${ts}</td>
+      <td style="color:var(--muted);font-size:11px">${src}</td>
+      <td><button class="btn-icon danger" data-del="${q.key}" title="Löschen">🗑</button></td>
+    </tr>`
+  }).join('')
+
+  tbody.querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => qr.db.del(btn.dataset.del)
+    // db.on() unten reagiert automatisch → itemMap updated → renderTable()
+  })
+}
+
+// ── Subscription engine ───────────────────────────────────────────────────────
+async function subscribe() {
+  // Cancel any previous subscription
+  currentOff?.()
+  currentOff = null
+  itemMap.clear()
+
+  const prefix  = document.getElementById('f-prefix').value.trim()
+  const mode    = document.getElementById('f-mode').value
+  staticMode    = mode === 'static'
+
+  // Prefixes to query (empty = all sigil namespaces)
+  const prefixes = prefix ? [prefix] : ['~', '@', 'conf/', 'sys/']
+
+  if (mode === 'live-initial' || mode === 'live-only') {
+    // Reaktivitätsmodus 2 oder 3: db.on() für Live-Updates
+    const pattern = prefix
+      ? (prefix.endsWith('/') ? prefix+'**' : prefix+'/**')
+      : '**'
+
+    currentOff = qr.db.on(pattern, (q, { event }) => {
+      applyToMap(q, event)
+      renderTable()
+    })
+  }
+
+  if (mode === 'live-initial' || mode === 'static') {
+    // Reaktivitätsmodus 1 oder 2: initiale Daten laden
+    for (const p of prefixes) {
+      try {
+        const rows = await qr.db.query(p, { order:'ts-desc', limit:200, includeDeleted:false })
+        for (const q of rows) itemMap.set(q.key, q)
+      } catch {}
+    }
+    renderTable()
+  }
+}
+
+document.getElementById('btn-apply').onclick = subscribe
+document.getElementById('f-search').oninput  = renderTable
+document.getElementById('f-order').onchange  = renderTable
+
+// Seed button
+document.getElementById('btn-seed').onclick = async () => {
+  await qr.db.put('@demo/notes/'+Date.now(), { text:'Neue Notiz '+new Date().toLocaleTimeString() })
+}
+
+// New entry form
+document.getElementById('btn-new').onclick = () => { document.getElementById('new-form').hidden = false }
+document.getElementById('btn-cancel-new').onclick = () => { document.getElementById('new-form').hidden = true }
+document.getElementById('btn-save-new').onclick = async () => {
+  const key = document.getElementById('nf-key').value.trim()
+  const raw = document.getElementById('nf-val').value.trim()
+  if (!key) return
+  let val = raw
+  try { val = JSON.parse(raw) } catch {}
+  await qr.db.put(key, val)
+  document.getElementById('new-form').hidden = true
+  document.getElementById('nf-key').value = ''
+  document.getElementById('nf-val').value = ''
+}
+
+// Initial subscription (mode: live-initial)
+await subscribe()
+</script>
+</body>
+</html>

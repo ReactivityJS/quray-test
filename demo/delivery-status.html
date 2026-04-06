@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Delivery-Status</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.delivery-chain{display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto;padding:4px 0}
+.dc-step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px}
+.dc-icon{width:36px;height:36px;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  background:var(--surface);transition:.3s}
+.dc-icon.active{border-color:var(--success);background:rgba(66,211,146,.12)}
+.dc-icon.current{border-color:var(--warning);background:rgba(246,196,83,.12);animation:pulse2 1s ease-in-out infinite}
+.dc-label{font-size:10px;color:var(--muted);text-align:center;white-space:nowrap}
+.dc-line{flex:1;height:2px;background:var(--border);min-width:16px;transition:.3s}
+.dc-line.active{background:var(--success)}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.5}}
+.msg-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.msg-row:last-child{border-bottom:none}
+.msg-text{flex:1;font-size:13px}
+.msg-state{font-size:11px;font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.msg-chain{display:flex;gap:4px;align-items:center;margin-top:4px}
+.cs{width:10px;height:10px;border-radius:50%;background:var(--border);transition:.3s}
+.cs.done{background:var(--success)}.cs.current{background:var(--warning);animation:pulse2 1s infinite}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>Delivery-Status</h1>
+    <p>6-stufiger Delivery-Funnel: <code>local → queued → relay_in → peer_sent → peer_recv → peer_read</code>.<br>
+       Reaktiv via <code>db.on(key, fn, {scope:'delivery'})</code>.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button class="success" id="btn-send">Nachricht senden</button>
+    <button class="primary" id="btn-file">Datei senden</button>
+    <button id="btn-reset" class="warning">Reset</button>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">Peers init…</div>
+</div>
+
+<section class="layout-grid two-columns">
+
+  <article class="card">
+    <h2>Gesendete Nachrichten</h2>
+    <div class="demo-actions" style="margin-bottom:10px">
+      <input id="msg-input" class="demo-input compact" placeholder="Nachricht…" style="flex:1">
+      <button class="success" id="btn-send-msg">Senden</button>
+    </div>
+    <div id="msg-list" style="min-height:60px">
+      <div class="small-text" style="color:var(--muted)">Noch keine Nachrichten.</div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Konzept: 6-stufiger Funnel</h2>
+    <p class="small-text">Jede Stufe ist ein Zustand in <code>conf/delivery/{key}</code> — lokal persistent, nie synchronisiert.</p>
+    <div class="delivery-chain" id="chain-demo">
+      <!-- wird via JS gebaut -->
+    </div>
+    <div style="margin-top:14px" class="small-text">
+      <div id="chain-explanation" style="color:var(--muted)">Sende eine Nachricht um den Funnel zu sehen.</div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="small-text" style="margin-bottom:6px;color:var(--muted)">API:</div>
+      <pre style="margin:0;font-size:11px;padding:10px"><code>// Reaktiv auf Delivery-State hören:
+qr.db.on(key, (entry, meta) => {
+  console.log(entry.state) // 'local', 'relay_in', …
+}, { scope: 'delivery' })
+
+// Einmalig lesen:
+const d = await qr.db.delivery.get(key)
+console.log(d?.state) // 'peer_recv'
+
+// Prüfen ob mindestens 'relay_in':
+const ok = await qr.db.delivery.isAtLeast(key, 'relay_in')</code></pre>
+    </div>
+  </article>
+
+  <article class="card" style="grid-column:1/-1">
+    <h2>Live-Log</h2>
+    <div id="log" class="demo-log" style="max-height:220px"></div>
+  </article>
+
+</section>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import { createDemoPair, createTimer, createLogWriter } from './lib/demo-runtime.js'
+import { DELIVERY_STATE } from '../src/core/delivery.js'
+
+const logEl = document.getElementById('log')
+const log   = createLogWriter(logEl)
+const t     = createTimer(msg => log(msg))
+
+const STATES = [
+  { key:'local',     icon:'💾', label:'Lokal' },
+  { key:'queued',    icon:'📋', label:'Queue' },
+  { key:'relay_in',  icon:'📡', label:'Relay' },
+  { key:'peer_sent', icon:'📤', label:'Gesendet' },
+  { key:'peer_recv', icon:'📥', label:'Empfangen' },
+  { key:'peer_read', icon:'✅', label:'Gelesen' },
+]
+
+// ── Build chain visualizer ────────────────────────────────────────────────────
+function buildChain(container, currentState) {
+  const idx = STATES.findIndex(s => s.key === currentState)
+  container.innerHTML = STATES.map((s, i) => `
+    <div class="dc-step">
+      <div class="dc-icon ${i < idx?'active':i===idx?'current':''}">${s.icon}</div>
+      <div class="dc-label">${s.label}</div>
+    </div>
+    ${i < STATES.length-1 ? `<div class="dc-line ${i < idx?'active':''}"></div>` : ''}
+  `).join('')
+
+  const explanations = {
+    local:     '💾 Lokal gespeichert — im IDB-Backend des Absenders.',
+    queued:    '📋 In der Sync-Queue — wartet auf Relay-Verbindung.',
+    relay_in:  '📡 Relay hat das QuBit empfangen und persistent gespeichert.',
+    peer_sent: '📤 Relay hat den Empfänger benachrichtigt (WS Push).',
+    peer_recv: '📥 Empfänger hat das QuBit in seine lokale DB geschrieben.',
+    peer_read: '✅ Empfänger-App hat das QuBit gelesen (explizit bestätigt).',
+  }
+  document.getElementById('chain-explanation').textContent = explanations[currentState] ?? '—'
+}
+
+buildChain(document.getElementById('chain-demo'), 'local')
+
+t.step('Start')
+const { relay, alice, bob } = await createDemoPair({ timer: t })
+window.qrPeers = { alice, bob, relay: typeof relay !== "undefined" ? relay : null }
+t.done('Init')
+document.getElementById('init-overlay').remove()
+
+// ── Message list ──────────────────────────────────────────────────────────────
+const PREFIX  = `@demo-delivery/msgs/${alice.pub.slice(0,8)}/`
+
+// Space ACL — writers:'*' so Alice can write to @demo-delivery
+await alice.db.put('@demo-delivery/~acl', { owner: alice.pub, writers: '*' })
+const msgMap  = new Map()   // key → { qubit, state }
+
+function buildMsgRow(key, text, state) {
+  const idx = STATES.findIndex(s => s.key === state)
+  const dots = STATES.map((s, i) =>
+    `<div class="cs ${i < idx?'done':i===idx?'current':''}" title="${s.label}"></div>`
+  ).join('')
+  return `<div class="msg-row" data-key="${key}">
+    <div style="flex:1">
+      <div class="msg-text">${text}</div>
+      <div class="msg-chain">${dots}</div>
+    </div>
+    <div class="msg-state">${state ?? '—'}</div>
+  </div>`
+}
+
+function renderMsgs() {
+  const listEl = document.getElementById('msg-list')
+  if (!msgMap.size) {
+    listEl.innerHTML = '<div class="small-text" style="color:var(--muted)">Noch keine Nachrichten.</div>'
+    return
+  }
+  const items = [...msgMap.entries()].sort((a,b)=>(b[1].ts??0)-(a[1].ts??0))
+  listEl.innerHTML = items.map(([key, m]) =>
+    buildMsgRow(key, m.text, m.state)
+  ).join('')
+}
+
+// ── Senden ────────────────────────────────────────────────────────────────────
+const sendMsg = async (text) => {
+  if (!text) return
+  const key = `${PREFIX}${Date.now()}`
+  msgMap.set(key, { text, state:'local', ts: Date.now() })
+  renderMsgs()
+  buildChain(document.getElementById('chain-demo'), 'local')
+
+  // ── Delivery-Listener (Reaktivitätsmodus: nur Updates) ────────────────────
+  const offDelivery = alice.db.on(key, async (entry, meta) => {
+    const state = entry?.state ?? entry?.data?.state
+    if (!state) return
+    const m = msgMap.get(key)
+    if (m) { m.state = state; renderMsgs() }
+    buildChain(document.getElementById('chain-demo'), state)
+    log(`Delivery [${key.split('/').pop()}]: ${state}`, 
+      state==='peer_recv'||state==='peer_read'?'success':'info')
+    if (state === 'peer_read') offDelivery()
+  }, { scope:'delivery' })
+
+  // QuBit schreiben — triggert Delivery-Chain automatisch
+  await alice.db.put(key, { text, ts: Date.now() })
+  log(`Nachricht gesendet: "${text}"`, 'success')
+
+  // Simuliere Empfang durch Bob (via relay-sync)
+  setTimeout(async () => {
+    // Bob empfängt → simuliere peer_recv
+    const q = await alice.db.get(key)
+    if (q) {
+      await alice.db.delivery.set(key, 'peer_recv')
+      log('Bob hat empfangen (simuliert)', 'info')
+
+      // Simuliere peer_read nach weiterer Sekunde
+      setTimeout(async () => {
+        await alice.db.delivery.set(key, 'peer_read')
+        log('Bob hat gelesen (simuliert)', 'success')
+      }, 1200)
+    }
+  }, 1500)
+}
+
+document.getElementById('btn-send-msg').onclick = async () => {
+  const inp = document.getElementById('msg-input')
+  await sendMsg(inp.value.trim())
+  inp.value = ''
+}
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key==='Enter') document.getElementById('btn-send-msg').click()
+})
+document.getElementById('btn-send').onclick = () => {
+  document.getElementById('msg-input').value = 'Hallo Bob!'
+  document.getElementById('btn-send-msg').click()
+}
+
+// ── File-Delivery Simulation ──────────────────────────────────────────────────
+document.getElementById('btn-file').onclick = async () => {
+  const key   = `@demo-delivery/files/${Date.now()}`
+  const text  = '📄 file.pdf (2.3 MB)'
+  msgMap.set(key, { text, state:'local', ts:Date.now() })
+  renderMsgs()
+
+  const offD = alice.db.on(key, (entry) => {
+    const state = entry?.state
+    if (!state) return
+    const m = msgMap.get(key)
+    if (m) { m.state = state; renderMsgs() }
+    buildChain(document.getElementById('chain-demo'), state)
+    log(`File delivery [${key.split('/').pop()}]: ${state}`)
+    if (state === 'peer_recv') offD()
+  }, { scope:'delivery' })
+
+  await alice.db.put(key, { name:'file.pdf', size:2_300_000 })
+  log('Datei-QuBit gespeichert', 'success')
+
+  // Relay-Simulation
+  setTimeout(() => alice.db.delivery.set(key, 'relay_in'), 600)
+  setTimeout(() => alice.db.delivery.set(key, 'peer_sent'), 1000)
+  setTimeout(() => { alice.db.delivery.set(key, 'peer_recv'); log('Datei empfangen!', 'success') }, 1800)
+}
+
+document.getElementById('btn-reset').onclick = () => location.reload()
+</script>
+</body>
+</html>

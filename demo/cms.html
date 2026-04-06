@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuBlog — QuCMS + QuRouter Demo</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+/* ── Site layout ──────────────────────────────────────────────── */
+.site-nav{background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:50}
+.nav-inner{max-width:900px;margin:0 auto;padding:0 1.5rem;
+  display:flex;align-items:center;gap:1rem;height:52px}
+.nav-brand{font-size:1.1rem;font-weight:700;text-decoration:none;color:var(--text);flex-shrink:0}
+.nav-brand span{color:var(--primary)}
+.nav-links{display:flex;gap:3px;flex:1}
+.nav-links a{padding:5px 11px;border-radius:8px;text-decoration:none;
+  font-size:.875rem;color:var(--muted);transition:.12s;cursor:pointer}
+.nav-links a:hover,.nav-links a.active{background:rgba(103,183,255,.12);color:var(--primary)}
+.site-main{max-width:900px;margin:0 auto;padding:1.5rem}
+.site-footer{text-align:center;padding:1.5rem;font-size:.8rem;
+  color:var(--muted);border-top:1px solid var(--border)}
+#qu-outlet{min-height:180px;animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+
+/* ── Blog list ────────────────────────────────────────────────── */
+.post-grid{display:grid;gap:13px;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin-top:14px}
+.post-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px;cursor:pointer;transition:border-color .12s;display:block;text-decoration:none;
+  color:inherit}
+.post-card:hover{border-color:var(--primary)}
+.post-card h3{margin:0 0 6px;font-size:1rem;color:var(--text)}
+.post-card p{margin:0 0 8px;font-size:.85rem;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.post-card .meta{font-size:.75rem;color:var(--muted)}
+.post-card .tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:99px;
+  background:rgba(103,183,255,.12);color:var(--primary);margin-right:3px}
+.draft-badge{font-size:.7rem;padding:1px 7px;border-radius:99px;
+  background:rgba(246,196,83,.12);color:var(--warning);border:1px solid rgba(246,196,83,.3);margin-left:4px}
+
+/* ── Single post / page ───────────────────────────────────────── */
+.post-view{max-width:660px}
+.post-view h1{font-size:1.8rem;margin:0 0 .4rem;line-height:1.25}
+.post-meta{color:var(--muted);font-size:.85rem;margin-bottom:1.5rem;
+  display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:4px;color:var(--muted);
+  font-size:.85rem;text-decoration:none;margin-bottom:1rem;cursor:pointer}
+.back-link:hover{color:var(--primary)}
+.post-body{line-height:1.75}
+.post-body h2{font-size:1.25rem;margin:1.4rem 0 .4rem}
+.post-body p{margin:0 0 .9rem;color:var(--muted)}
+.post-body pre{background:#0a1016;border:1px solid var(--border);border-radius:9px;
+  padding:13px;font:12px/1.6 var(--mono);overflow-x:auto;margin:.8rem 0}
+.post-body blockquote{border-left:3px solid var(--primary);padding-left:.9rem;
+  margin:.8rem 0;color:var(--muted);font-style:italic}
+.post-body ul,.post-body ol{padding-left:1.4rem;margin:0 0 .8rem}
+.post-body li{color:var(--muted);margin-bottom:.25rem}
+.cms-hero{padding:1.5rem 0 1rem}
+.cms-hero h1{font-size:1.9rem;margin:0 0 .4rem}
+.cms-hero p{color:var(--muted);max-width:52ch;margin:0 0 1rem}
+
+/* ── Admin ────────────────────────────────────────────────────── */
+.admin-layout{display:grid;gap:14px;grid-template-columns:190px 1fr;margin-top:.5rem}
+@media(max-width:600px){.admin-layout{grid-template-columns:1fr}}
+.admin-sidebar{background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:12px;align-self:start;position:sticky;top:62px}
+.admin-sidebar h3{margin:0 0 8px;font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.07em}
+.admin-item{display:flex;align-items:center;gap:5px;padding:6px 8px;border-radius:7px;
+  cursor:pointer;font-size:12.5px;transition:.1s;color:var(--text)}
+.admin-item:hover{background:rgba(255,255,255,.06)}
+.admin-item.active{background:rgba(103,183,255,.12);color:var(--primary)}
+.admin-item code{font-size:10px;color:var(--muted);margin-left:auto;flex-shrink:0}
+.admin-main{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
+.field{display:grid;gap:5px;margin-bottom:11px}
+.field label{font-size:.75rem;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.field input,.field select,.field textarea{background:#0b1016;color:var(--text);
+  border:1px solid var(--border);border-radius:7px;padding:7px 10px;
+  font:inherit;font-size:.9rem;width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--primary)}
+.save-hint{font-size:11px;color:var(--muted);margin-top:4px;min-height:16px}
+.acl-info{font-size:11px;padding:8px 10px;border-radius:8px;
+  background:rgba(103,183,255,.06);border:1px solid rgba(103,183,255,.2);margin-bottom:12px}
+
+/* ── WYSIWYG editor ───────────────────────────────────────────── */
+.editor-wrap{border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.editor-toolbar{display:flex;flex-wrap:wrap;gap:2px;padding:5px 7px;
+  background:rgba(255,255,255,.025);border-bottom:1px solid var(--border)}
+.editor-toolbar button{background:transparent;border:1px solid transparent;
+  color:var(--text);border-radius:4px;padding:2px 7px;font-size:12px;cursor:pointer;transition:.1s}
+.editor-toolbar button:hover{background:rgba(255,255,255,.07);border-color:var(--border)}
+.editor-toolbar button.active{background:rgba(103,183,255,.12);color:var(--primary);
+  border-color:rgba(103,183,255,.3)}
+.editor-toolbar .sep{width:1px;background:var(--border);margin:0 3px;align-self:stretch}
+.editor-content{min-height:200px;max-height:440px;overflow-y:auto;padding:13px;
+  font-size:.9rem;line-height:1.7;outline:none;color:var(--text);background:#0b1016}
+.editor-content:focus{background:#0d1318}
+.editor-content h1,.editor-content h2,.editor-content h3{margin:.4rem 0 .25rem}
+.editor-content p{margin:0 0 .7rem;color:var(--muted)}
+.editor-content pre{background:#0a1016;border:1px solid var(--border);
+  border-radius:7px;padding:9px;font:12px/1.5 var(--mono);white-space:pre-wrap}
+.editor-content blockquote{border-left:3px solid var(--primary);
+  padding-left:.7rem;color:var(--muted);font-style:italic}
+.editor-content ul,.editor-content ol{padding-left:1.3rem}
+.editor-content li{color:var(--muted)}
+.editor-source{display:none;width:100%;min-height:200px;background:#0b1016;
+  color:var(--success);border:none;padding:13px;font:12px/1.5 var(--mono);resize:vertical}
+.editor-source:focus{outline:none}
+</style>
+</head>
+<body>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-msg">QuCMS initialising…</div>
+</div>
+
+<!-- Site navigation — links built from router routes -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#/"><span>Qu</span>Blog</a>
+    <div class="nav-links" id="nav-links"></div>
+    <!-- Admin link only shown to space owner (checked after init) -->
+    <a id="admin-link" href="#/admin"
+      style="display:none;font-size:12px;padding:5px 9px;flex-shrink:0"
+      class="button-link">⚙ Admin</a>
+  </div>
+</nav>
+
+<main class="site-main">
+  <!-- Router outlet — all page content is injected here -->
+  <div id="qu-outlet"></div>
+</main>
+
+<footer class="site-footer">
+  <strong>QuCMS</strong> + <strong>QuRouter</strong> ·
+  Content &amp; templates as QuBits ·
+  <a href="/demo/index.html">← Demo Index</a>
+</footer>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+
+import QuRay, { registerComponents, registerDirectiveComponents } from '../src/quray.js'
+import { QuRouter }  from '../src/plugins/qu-router.js'
+import { QuCMS }     from '../src/plugins/qu-cms.js'
+import { createTimer } from './lib/demo-runtime.js'
+import { RelaySession } from './lib/demo-session.js'
+
+const t = createTimer(msg => document.getElementById('init-msg').textContent = msg.split('] ')[1] ?? msg)
+t.step('Start')
+
+// Initialise QuRay with full UI support
+const qr = await QuRay.init({
+  alias:      'Blog Author',
+  relay:      RelaySession().relayUrl() ?? undefined,
+  ui:         true,
+  binding:    true,
+  directives: true,
+})
+t.step('QuRay.init')
+
+// Register all qu-* custom elements and directives
+registerComponents(qr.db, { me: qr.me, peers: qr.peers, net: qr._.net })
+registerDirectiveComponents()
+
+// Expose to dev console for debugging
+window.qr = qr
+
+// ── Router ────────────────────────────────────────────────────────────────────
+const router = await QuRouter.create(qr.db, {
+  prefix:  'conf/router/',
+  outlet:  '#qu-outlet',
+  // Activates qu-* elements in newly injected content
+  mountFn: el => qr._.ui?.directives?.mount?.(el),
+})
+window.qrRouter = router
+t.step('QuRouter')
+
+// ── CMS ───────────────────────────────────────────────────────────────────────
+const cms = await QuCMS.create(qr.db, router, qr.me, {
+  spaceName:        'QuBlog',
+  spaceDescription: 'A reactive blog built on QuRay.',
+  mountFn:          el => qr._.ui?.directives?.mount?.(el),
+})
+window.qrCMS = cms
+t.step(`QuCMS (space: ${cms.space.slice(0,14)}…)`)
+
+// ── Admin access ──────────────────────────────────────────────────────────────
+// Only the space owner sees the admin link and can access /admin.
+// ACL is enforced at render time — not just in the UI.
+const userIsOwner = await cms.isOwner()
+if (userIsOwner) {
+  document.getElementById('admin-link').style.display = 'inline-flex'
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function buildNav() {
+  const path = location.hash.slice(1) || '/'
+  // Only show routes with a title (admin has no title — intentionally hidden)
+  document.getElementById('nav-links').innerHTML = router.getRoutes()
+    .filter(r => r.title && (r.order ?? 50) < 90)
+    .sort((a, b) => (a.order ?? 50) - (b.order ?? 50))
+    .map(r => `<a onclick="location.hash='#${r.path}'"
+        class="${r.path === path ? 'active' : ''}">${r.title}</a>`)
+    .join('')
+}
+
+function setActiveNav(path) {
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    a.className = ''   // reset first
+  })
+  document.querySelectorAll('.nav-links a').forEach((a, i) => {
+    const routes = router.getRoutes()
+      .filter(r => r.title && (r.order ?? 50) < 90)
+      .sort((a, b) => (a.order ?? 50) - (b.order ?? 50))
+    const route = routes[i]
+    if (!route) return
+    a.className = (route.path === path || (path.startsWith(route.path) && route.path !== '/')) ? 'active' : ''
+  })
+}
+
+// ── Post list rendering ───────────────────────────────────────────────────────
+// Posts use atomic QuBits per field — we group by slug client-side.
+// (qu-for won't work here: it returns one list item per QuBit, not one per post)
+function renderPostGrid(posts) {
+  if (!posts.length) {
+    return '<p class="small-text" style="color:var(--muted)">No published posts yet.</p>'
+  }
+  return `<div class="post-grid">${posts.map(post => `
+    <a class="post-card" onclick="location.hash='#/blog/${post._slug}'">
+      <h3>${post.title}${post.status !== 'published' ? '<span class="draft-badge">Draft</span>' : ''}</h3>
+      <p>${post.excerpt || ''}</p>
+      <div class="meta">
+        ${post.author ?? ''}
+        ${post.tags?.length ? '· ' + post.tags.map(tag => `<span class="tag">${tag}</span>`).join('') : ''}
+      </div>
+    </a>`).join('')}</div>`
+}
+
+// ── Route rendering ───────────────────────────────────────────────────────────
+let _contentOff = null   // cleanup for reactive content listener
+
+async function renderRoute(path) {
+  setActiveNav(path)
+  const outlet = document.getElementById('qu-outlet')
+  if (!outlet) return
+
+  // Clean up previous reactive listener
+  _contentOff?.()
+  _contentOff = null
+
+  // ── /admin — ACL protected ────────────────────────────────────────────────
+  if (path === '/admin') {
+    if (!await cms.isOwner()) {
+      outlet.innerHTML = `<div style="padding:2rem;text-align:center">
+        <h2>Access denied</h2>
+        <p class="small-text" style="color:var(--muted)">
+          Only the space owner can access the admin panel.
+        </p>
+      </div>`
+      return
+    }
+    renderAdminPanel(outlet)
+    return
+  }
+
+  // ── /blog — post list (reactive via db.on) ────────────────────────────────
+  if (path === '/blog') {
+    const refresh = async () => {
+      const posts = await cms.loadPosts()
+      const grid  = outlet.querySelector('#post-grid')
+      if (grid) grid.innerHTML = renderPostGrid(posts)
+    }
+    outlet.innerHTML = `<div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <h2 style="margin:0">Blog</h2>
+        <span class="small-text" style="color:var(--muted)">
+          Reactive via <code>cms.onPostsChange()</code>
+        </span>
+      </div>
+      <div id="post-grid"></div>
+    </div>`
+    await refresh()
+    _contentOff = cms.onPostsChange(refresh)
+    return
+  }
+
+  // ── /blog/:slug — single post view ────────────────────────────────────────
+  if (path.startsWith('/blog/')) {
+    const slug = path.slice(6)
+    const html = await cms.renderPost(slug)
+    outlet.innerHTML = html
+    qr._.ui?.directives?.mount?.(outlet)
+
+    // Reactive update when content changes (e.g. live edit in admin)
+    _contentOff = qr.db.on('**', async (q, { key }) => {
+      if (key?.startsWith(`${cms.postsPrefix}${slug}/`)) {
+        const refreshed = await cms.renderPost(slug)
+        outlet.innerHTML = refreshed
+        qr._.ui?.directives?.mount?.(outlet)
+      }
+    })
+    return
+  }
+
+  // ── Router-registered pages (About, Home, custom pages) ──────────────────
+  const route = router.getRoutes().find(r => r.path === path)
+  if (route?.contentKey) {
+    const pageQubit = await qr.db.get(route.contentKey).catch(() => null)
+    const rawHtml   = typeof pageQubit?.data === 'string' ? pageQubit.data : ''
+    // Process any {{variables}} in home page (meta comes from space)
+    const spaceMeta = (await qr.db.get(`${cms.space}/~meta`).catch(() => null))?.data ?? {}
+    const rendered  = rawHtml.replace(/\{\{(\w+)\}\}/g,
+      (_, key) => spaceMeta[key] ?? qr.me[key] ?? '')
+    outlet.innerHTML = rendered
+    qr._.ui?.directives?.mount?.(outlet)
+
+    // React to page content changes
+    _contentOff = qr.db.on(route.contentKey, async (q) => {
+      if (q?.data) { outlet.innerHTML = q.data; qr._.ui?.directives?.mount?.(outlet) }
+    })
+
+    // Populate post grid on home page if present
+    const homeGrid = outlet.querySelector('#cms-recent-posts')
+    if (homeGrid) {
+      const recent = await cms.loadPosts({ status: 'published', limit: 3 })
+      homeGrid.innerHTML = renderPostGrid(recent)
+    }
+    return
+  }
+
+  outlet.innerHTML = `<p style="color:var(--muted);padding:2rem">
+    404 — Page not found: <code>${path}</code></p>`
+}
+
+// ── Admin panel ────────────────────────────────────────────────────────────────
+// The admin panel is rendered as a normal page at /admin, protected by ACL.
+// No separate UI element needed — it's just a route.
+
+let adminActive  = null    // currently selected item in sidebar
+let destroyEditor = null   // WYSIWYG cleanup function
+
+function renderAdminPanel(outlet) {
+  outlet.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+      <h2 style="margin:0">Admin</h2>
+      <div class="acl-info">
+        Space: <code>${cms.space}</code> · Owner: <code>${qr.me.pub64.slice(0,14)}…</code>
+      </div>
+    </div>
+    <div class="admin-layout">
+      <aside class="admin-sidebar">
+        <h3>Pages &amp; Posts</h3>
+        <div id="sidebar-items"></div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          <button class="button-link success" id="btn-new-post"
+            style="font-size:12px;text-align:center">+ New post</button>
+          <button class="button-link" id="btn-new-page"
+            style="font-size:12px;text-align:center">+ New page</button>
+          <button class="button-link" id="btn-templates"
+            style="font-size:12px;text-align:center">✏ Templates</button>
+        </div>
+      </aside>
+      <div class="admin-main" id="admin-editor">
+        <p class="small-text" style="color:var(--muted)">
+          ← Select a page or post to edit.
+        </p>
+      </div>
+    </div>`
+
+  refreshSidebar()
+  document.getElementById('btn-new-post').onclick  = () => createNewPost()
+  document.getElementById('btn-new-page').onclick  = () => createNewPage()
+  document.getElementById('btn-templates').onclick = () => openTemplateEditor()
+}
+
+async function refreshSidebar() {
+  const sidebarEl = document.getElementById('sidebar-items')
+  if (!sidebarEl) return
+
+  const routes = router.getRoutes()
+    .filter(r => r.title && r.order < 90)
+    .sort((a, b) => (a.order ?? 50) - (b.order ?? 50))
+
+  const posts = await cms.loadPosts()
+
+  const routeItems = routes.map(r => `
+    <div class="admin-item${r._id === adminActive ? ' active' : ''}" data-type="route" data-id="${r._id}">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</span>
+      <code>${r.path}</code>
+    </div>`)
+
+  const postItems = posts.map(p => `
+    <div class="admin-item${p._slug === adminActive ? ' active' : ''}" data-type="post" data-slug="${p._slug}">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title}</span>
+      ${p.status !== 'published' ? '<span class="draft-badge">Draft</span>' : ''}
+    </div>`)
+
+  sidebarEl.innerHTML =
+    (routeItems.length ? '<div class="admin-sidebar-group">Pages</div>' + routeItems.join('') : '') +
+    (postItems.length  ? '<div class="admin-sidebar-group" style="margin-top:8px">Posts</div>' + postItems.join('') : '')
+
+  sidebarEl.querySelectorAll('[data-type="route"]').forEach(el =>
+    el.onclick = () => openRouteEditor(el.dataset.id))
+  sidebarEl.querySelectorAll('[data-type="post"]').forEach(el =>
+    el.onclick = () => openPostEditor(el.dataset.slug))
+}
+
+// ── Post editor ────────────────────────────────────────────────────────────────
+async function openPostEditor(slug) {
+  adminActive = slug
+  destroyEditor?.(); destroyEditor = null
+  refreshSidebar()
+
+  const editorEl = document.getElementById('admin-editor')
+  if (!editorEl) return
+
+  // Load all post fields in parallel
+  const [titleQ, excerptQ, statusQ, tagsQ, contentQ] = await Promise.all([
+    qr.db.get(`${cms.postsPrefix}${slug}/title`),
+    qr.db.get(`${cms.postsPrefix}${slug}/excerpt`),
+    qr.db.get(`${cms.postsPrefix}${slug}/status`),
+    qr.db.get(`${cms.postsPrefix}${slug}/tags`),
+    qr.db.get(`${cms.postsPrefix}${slug}/content`),
+  ])
+
+  const title   = titleQ?.data   ?? ''
+  const excerpt = excerptQ?.data ?? ''
+  const status  = statusQ?.data  ?? 'draft'
+  const tags    = (tagsQ?.data   ?? []).join(', ')
+  const content = contentQ?.data ?? ''
+
+  editorEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+      <strong style="font-size:.95rem">${title || '(untitled)'}</strong>
+      <div class="demo-actions" style="gap:5px">
+        <button class="button-link success" id="ed-save"    style="font-size:12px">💾 Save</button>
+        <button class="button-link primary" id="ed-publish" style="font-size:12px">
+          ${status === 'published' ? 'Unpublish' : '✓ Publish'}</button>
+        <button class="button-link"         id="ed-preview" style="font-size:12px">👁 Preview</button>
+        <button class="button-link danger"  id="ed-delete"  style="font-size:12px">🗑</button>
+      </div>
+    </div>
+    <div class="field"><label>Title</label>
+      <input id="ed-title" value="${title.replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label>Excerpt</label>
+      <input id="ed-excerpt" value="${excerpt.replace(/"/g,'&quot;')}"></div>
+    <div style="display:flex;gap:8px;margin-bottom:11px">
+      <div class="field" style="flex:1"><label>Tags (comma separated)</label>
+        <input id="ed-tags" value="${tags}"></div>
+      <div class="field"><label>Status</label>
+        <select id="ed-status" style="width:auto">
+          <option value="draft"     ${status !== 'published' ? 'selected' : ''}>Draft</option>
+          <option value="published" ${status === 'published' ? 'selected' : ''}>Published</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Content</label>
+      <div class="editor-wrap" id="ed-wysiwyg"></div>
+      <div class="save-hint" id="ed-hint"></div>
+    </div>`
+
+  // Mount WYSIWYG and autosave content on changes
+  destroyEditor = mountWysiwyg(
+    document.getElementById('ed-wysiwyg'),
+    content,
+    async (html) => {
+      await cms.updatePost(slug, 'content', html)
+      const hintEl = document.getElementById('ed-hint')
+      if (hintEl) hintEl.textContent = '✓ Autosaved ' + new Date().toLocaleTimeString()
+    }
+  )
+
+  const saveAll = async () => {
+    const newTitle   = document.getElementById('ed-title').value.trim()
+    const newExcerpt = document.getElementById('ed-excerpt').value.trim()
+    const newStatus  = document.getElementById('ed-status').value
+    const newTags    = document.getElementById('ed-tags').value.split(',').map(s => s.trim()).filter(Boolean)
+    const html       = document.getElementById('ed-wysiwyg').querySelector('.editor-content')?.innerHTML ?? ''
+
+    await Promise.all([
+      cms.updatePost(slug, 'title',   newTitle),
+      cms.updatePost(slug, 'excerpt', newExcerpt),
+      cms.updatePost(slug, 'status',  newStatus),
+      cms.updatePost(slug, 'tags',    newTags),
+      cms.updatePost(slug, 'content', html),
+    ])
+    const hintEl = document.getElementById('ed-hint')
+    if (hintEl) hintEl.textContent = '✓ Saved ' + new Date().toLocaleTimeString()
+    refreshSidebar()
+  }
+
+  document.getElementById('ed-save').onclick    = saveAll
+  document.getElementById('ed-publish').onclick = async () => {
+    await saveAll()
+    const currentStatus = document.getElementById('ed-status').value
+    const nextStatus    = currentStatus === 'published' ? 'draft' : 'published'
+    await cms.updatePost(slug, 'status', nextStatus)
+    document.getElementById('ed-status').value  = nextStatus
+    document.getElementById('ed-publish').textContent = nextStatus === 'published' ? 'Unpublish' : '✓ Publish'
+    refreshSidebar()
+  }
+  document.getElementById('ed-preview').onclick = () => { location.hash = `#/blog/${slug}` }
+  document.getElementById('ed-delete').onclick  = async () => {
+    if (!confirm('Delete this post?')) return
+    await cms.deletePost(slug)
+    destroyEditor?.(); destroyEditor = null; adminActive = null
+    refreshSidebar()
+    document.getElementById('admin-editor').innerHTML =
+      '<p class="small-text" style="color:var(--muted)">Post deleted.</p>'
+  }
+}
+
+// ── Page editor ────────────────────────────────────────────────────────────────
+async function openRouteEditor(routeId) {
+  adminActive = routeId
+  destroyEditor?.(); destroyEditor = null
+  refreshSidebar()
+
+  const editorEl = document.getElementById('admin-editor')
+  if (!editorEl) return
+
+  const route     = router.getRoutes().find(r => r._id === routeId)
+  if (!route) return
+
+  const contentQ  = route.contentKey
+    ? await qr.db.get(route.contentKey).catch(() => null)
+    : null
+  const content   = typeof contentQ?.data === 'string' ? contentQ.data : ''
+
+  editorEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+      <strong style="font-size:.95rem">${route.title ?? route.path}</strong>
+      <div class="demo-actions" style="gap:5px">
+        <button class="button-link success" id="ed-save"    style="font-size:12px">💾 Save</button>
+        <button class="button-link"         id="ed-preview" style="font-size:12px">👁 Preview</button>
+        <button class="button-link danger"  id="ed-delete"  style="font-size:12px">🗑</button>
+      </div>
+    </div>
+    <div class="field"><label>Title</label>
+      <input id="ed-title" value="${(route.title ?? '').replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label>Path</label>
+      <input id="ed-path" value="${route.path}"></div>
+    <div class="field"><label>Content (HTML — qu-* elements supported)</label>
+      <div class="editor-wrap" id="ed-wysiwyg"></div>
+      <div class="save-hint" id="ed-hint"></div>
+    </div>`
+
+  destroyEditor = mountWysiwyg(
+    document.getElementById('ed-wysiwyg'),
+    content,
+    async (html) => {
+      if (route.contentKey) await qr.db.put(route.contentKey, html)
+      const hintEl = document.getElementById('ed-hint')
+      if (hintEl) hintEl.textContent = '✓ Autosaved ' + new Date().toLocaleTimeString()
+    }
+  )
+
+  document.getElementById('ed-save').onclick = async () => {
+    const newTitle = document.getElementById('ed-title').value.trim()
+    const newPath  = document.getElementById('ed-path').value.trim()
+    const html     = document.getElementById('ed-wysiwyg').querySelector('.editor-content')?.innerHTML ?? ''
+    await router.updateRoute(routeId, { title: newTitle, path: newPath })
+    if (route.contentKey) await qr.db.put(route.contentKey, html)
+    const hintEl = document.getElementById('ed-hint')
+    if (hintEl) hintEl.textContent = '✓ Saved'
+    buildNav(); refreshSidebar()
+  }
+  document.getElementById('ed-preview').onclick = () => { location.hash = `#${route.path}` }
+  document.getElementById('ed-delete').onclick = async () => {
+    if (!confirm('Delete this page?')) return
+    await router.deleteRoute(routeId)
+    destroyEditor?.(); destroyEditor = null; adminActive = null
+    buildNav(); refreshSidebar()
+  }
+}
+
+// ── Template editor ────────────────────────────────────────────────────────────
+async function openTemplateEditor() {
+  const editorEl = document.getElementById('admin-editor')
+  if (!editorEl) return
+
+  const templateNames = ['post', 'page', 'home', 'list']
+  let   currentTemplate = 'post'
+
+  const loadTemplate = async () => {
+    const html = await cms.getTemplate(currentTemplate)
+    const editorWrap = editorEl.querySelector('.editor-wrap')
+    if (!editorWrap) return
+    // Update the editor content
+    const contentEl = editorWrap.querySelector('.editor-content')
+    const sourceEl  = editorWrap.querySelector('.editor-source')
+    if (sourceEl) sourceEl.value = html
+    if (contentEl) contentEl.innerHTML = html
+  }
+
+  editorEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+      <strong style="font-size:.95rem">Templates</strong>
+      <button class="button-link success" id="ed-save-tpl" style="font-size:12px">💾 Save</button>
+    </div>
+    <p class="small-text" style="color:var(--muted);margin-bottom:10px">
+      Templates are stored as QuBits at <code>${cms.space}/templates/{name}</code>.
+      Use <code>{{title}}</code>, <code>{{content}}</code>, <code>{{author}}</code>,
+      <code>{{created}}</code>, <code>{{tags}}</code> as placeholders.
+      <code>qu-*</code> elements are activated reactively after rendering.
+    </p>
+    <div class="field"><label>Template</label>
+      <select id="tpl-select" style="width:auto">
+        ${templateNames.map(n => `<option value="${n}">${n}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>HTML</label>
+      <div class="editor-wrap" id="ed-wysiwyg"></div>
+    </div>`
+
+  destroyEditor = mountWysiwyg(document.getElementById('ed-wysiwyg'), await cms.getTemplate('post'), null)
+
+  document.getElementById('tpl-select').onchange = async (e) => {
+    currentTemplate = e.target.value
+    await loadTemplate()
+  }
+  document.getElementById('ed-save-tpl').onclick = async () => {
+    const html = editorEl.querySelector('.editor-content')?.innerHTML ?? ''
+    await cms.setTemplate(currentTemplate, html)
+  }
+}
+
+// ── WYSIWYG editor ─────────────────────────────────────────────────────────────
+/**
+ * Mount a minimal WYSIWYG editor into a container.
+ * Uses contenteditable + execCommand (no external dependencies).
+ *
+ * @param {HTMLElement} container
+ * @param {string}      initialHtml
+ * @param {function|null} onAutosave  - called with html string after 1.5s idle
+ * @returns {function} destroy — call to cancel pending autosave
+ */
+function mountWysiwyg(container, initialHtml, onAutosave = null) {
+  const TOOLBAR_ACTIONS = [
+    { cmd: 'bold',              label: '<b>B</b>' },
+    { cmd: 'italic',            label: '<i>I</i>' },
+    { cmd: 'underline',         label: '<u>U</u>' },
+    { cmd: 'strikeThrough',     label: '<s>S</s>' },
+    { sep: true },
+    { cmd: 'formatBlock|h2',    label: 'H2' },
+    { cmd: 'formatBlock|h3',    label: 'H3' },
+    { cmd: 'formatBlock|p',     label: 'P' },
+    { cmd: 'formatBlock|pre',   label: '</>' },
+    { cmd: 'formatBlock|blockquote', label: '❝' },
+    { sep: true },
+    { cmd: 'insertUnorderedList', label: '• List' },
+    { cmd: 'insertOrderedList',   label: '1. List' },
+    { sep: true },
+    { cmd: 'createLink|URL:',   label: '🔗' },
+    { cmd: 'insertImage|Image URL:', label: '🖼' },
+    { sep: true },
+    { cmd: '__source',          label: '</> HTML' },
+  ]
+
+  let isSourceMode = false
+  let autosaveTimer = null
+
+  container.innerHTML = `
+    <div class="editor-toolbar" id="et"></div>
+    <div class="editor-content" contenteditable="true" id="ec"></div>
+    <textarea class="editor-source" id="es" spellcheck="false"></textarea>`
+
+  const toolbarEl = container.querySelector('#et')
+  const contentEl = container.querySelector('#ec')
+  const sourceEl  = container.querySelector('#es')
+  contentEl.innerHTML = initialHtml
+
+  // Build toolbar buttons
+  for (const action of TOOLBAR_ACTIONS) {
+    if (action.sep) {
+      const sep = document.createElement('div')
+      sep.className = 'sep'
+      toolbarEl.appendChild(sep)
+      continue
+    }
+
+    const button = document.createElement('button')
+    button.innerHTML = action.label
+    button.type      = 'button'
+
+    if (action.cmd === '__source') {
+      // Toggle HTML source view
+      button.onclick = () => {
+        isSourceMode = !isSourceMode
+        button.classList.toggle('active', isSourceMode)
+        if (isSourceMode) {
+          sourceEl.value          = contentEl.innerHTML
+          contentEl.style.display = 'none'
+          sourceEl.style.display  = 'block'
+        } else {
+          contentEl.innerHTML     = sourceEl.value
+          contentEl.style.display = ''
+          sourceEl.style.display  = 'none'
+        }
+      }
+    } else if (action.cmd.includes('|')) {
+      const [command, arg] = action.cmd.split('|')
+      button.onclick = () => {
+        if (command === 'createLink' || command === 'insertImage') {
+          const url = prompt(arg)
+          if (url) document.execCommand(command, false, url)
+        } else {
+          document.execCommand(command, false, arg)
+        }
+        contentEl.focus()
+        scheduleAutosave()
+      }
+    } else {
+      button.onclick = () => {
+        document.execCommand(action.cmd, false, null)
+        contentEl.focus()
+        scheduleAutosave()
+      }
+    }
+
+    toolbarEl.appendChild(button)
+  }
+
+  const scheduleAutosave = () => {
+    if (!onAutosave) return
+    clearTimeout(autosaveTimer)
+    autosaveTimer = setTimeout(async () => {
+      const html = isSourceMode ? sourceEl.value : contentEl.innerHTML
+      await onAutosave(html)
+    }, 1500)
+  }
+
+  contentEl.addEventListener('input', scheduleAutosave)
+  sourceEl.addEventListener('input',  scheduleAutosave)
+
+  // Clean up styles on paste
+  contentEl.addEventListener('paste', e => {
+    e.preventDefault()
+    const pastedHtml = e.clipboardData.getData('text/html')
+                    || e.clipboardData.getData('text/plain')
+    const cleanHtml  = pastedHtml.replace(/\s*(style|class|id)="[^"]*"/gi, '')
+    document.execCommand('insertHTML', false, cleanHtml)
+    scheduleAutosave()
+  })
+
+  return () => clearTimeout(autosaveTimer)
+}
+
+// ── Create new entries ─────────────────────────────────────────────────────────
+async function createNewPost() {
+  const title = prompt('New post title:')
+  if (!title) return
+  const slug = await cms.createPost(null, { title })   // null → auto slug from title
+  await refreshSidebar()
+  openPostEditor(slug)
+}
+
+async function createNewPage() {
+  const title = prompt('New page title:')
+  if (!title) return
+  const slug    = title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)
+  const pageKey = `${cms.pagesPrefix}${slug}`
+  await cms.setPage(slug, `<div class="post-view"><h1>${title}</h1><p>Write your content…</p></div>`)
+  await router.addRoute({ path: `/${slug}`, title, contentKey: pageKey, order: 10 })
+  buildNav()
+  await refreshSidebar()
+  openRouteEditor(router.getRoutes().find(r => r.path === `/${slug}`)?._id)
+}
+
+// ── Reactive navigation listeners ─────────────────────────────────────────────
+// Update nav when route QuBits change
+qr.db.on('**', (q, { key }) => {
+  if (key?.startsWith('conf/router/')) buildNav()
+})
+
+// ── Seed demo content ─────────────────────────────────────────────────────────
+async function seedDemoContent() {
+  if (router.getRoutes().length > 0) return
+
+  // Register standard routes
+  await cms.registerRoutes()    // creates / and /blog
+  await cms.registerAdminRoute('/admin')
+
+  // Home page content — uses {{name}} and {{description}} from space meta
+  await cms.setPage('home', `
+<div class="cms-hero">
+  <h1>Welcome to <strong style="color:var(--primary)">{{name}}</strong></h1>
+  <p>{{description}}</p>
+  <a onclick="location.hash='#/blog'" class="button-link" style="cursor:pointer">
+    All Posts →
+  </a>
+</div>
+<div class="post-grid" id="cms-recent-posts">Loading…</div>`)
+
+  // About page
+  const aboutKey = `${cms.pagesPrefix}about`
+  await qr.db.put(aboutKey, `<div class="post-view">
+  <h1>About QuBlog</h1>
+  <div class="post-body">
+    <h2>Architecture</h2>
+    <p>QuBlog is a serverless blog built entirely on QuRay.</p>
+    <ul>
+      <li><strong>QuCMS</strong> — CMS plugin: posts, pages, templates as QuBits</li>
+      <li><strong>QuRouter</strong> — hash-based SPA router, routes as QuBits</li>
+      <li><strong>ACL</strong> — space owner controls write access</li>
+      <li><strong>Templates</strong> — HTML templates stored in QuDB, no server files</li>
+    </ul>
+    <h2>Data schema</h2>
+    <pre>@{spaceId}/posts/{slug}/title   → 'My Post'   (AtomicQuBit)
+@{spaceId}/posts/{slug}/content → '&lt;p&gt;...&lt;/p&gt;'
+@{spaceId}/templates/post       → '&lt;article&gt;{{content}}&lt;/article&gt;'
+@{spaceId}/~acl                 → { owner, writers: [pub] }</pre>
+  </div>
+</div>`)
+  await router.addRoute({ path: '/about', title: 'About', contentKey: aboutKey, order: 2 })
+
+  // Sample posts
+  for (const [slug, title, excerpt, content, tags] of [
+    ['atomic-qubits',
+     'Atomic QuBits — why each field is its own value',
+     'Instead of one object per document, QuRay stores each field as a separate signed QuBit.',
+     `<p>Each post field is an independent, signed QuBit:</p>
+<pre>@space/posts/slug/title   → 'My Post'
+@space/posts/slug/status  → 'published'
+@space/posts/slug/content → '&lt;article&gt;...&lt;/article&gt;'</pre>
+<p>Two peers can edit <code>title</code> and <code>status</code> simultaneously without conflict.</p>`,
+     ['architecture']],
+
+    ['qu-router',
+     'QuRouter — SPA routing with QuBits',
+     'QuRouter stores every route as atomic QuBits — reactive, multi-device, no server needed.',
+     `<p>Routes are QuBits in <code>conf/router/</code>:</p>
+<pre>conf/router/{id}/path       → '/about'
+conf/router/{id}/title      → 'About'
+conf/router/{id}/contentKey → '@space/pages/about'</pre>
+<p>Change a route title in the DB and the nav updates instantly everywhere.</p>`,
+     ['routing', 'quray']],
+  ]) {
+    await cms.createPost(slug, {
+      title, excerpt, content, tags,
+      status: 'published',
+    })
+  }
+}
+
+// ── Boot sequence ─────────────────────────────────────────────────────────────
+await seedDemoContent()
+t.done('Ready')
+document.getElementById('init-overlay').remove()
+buildNav()
+
+window.addEventListener('hashchange', () =>
+  renderRoute(location.hash.slice(1) || '/')
+)
+renderRoute(location.hash.slice(1) || '/')
+</script>
+</body>
+</html>

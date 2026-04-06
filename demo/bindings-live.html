@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title qu-key="conf/app/title" qu-placeholder="QuRay bindings live demo"></title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+</head>
+<body>
+<header class="demo-header">
+  <div>
+    <h1>Bindings live</h1>
+    <p>Inline binding style with <code>&lt;span&gt;</code>, two-way input binding, click-to-edit list rows, and template rendering through <code>qu-bind</code>.</p>
+  </div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Back to demo index</a>
+    <button class="primary" id="increase-unread-button">Increase unread counter</button>
+    <button id="reset-demo-button">Reset demo data</button>
+  </div>
+</header>
+
+<section class="layout-grid two-columns">
+  <article class="card">
+    <h2>Inline binding examples</h2>
+    <p>The recommended inline element for a single word or number is <code>&lt;span&gt;</code>.</p>
+    <div class="inline-demo">
+      <p>Welcome back, <span qu-key="~/alias"></span>.</p>
+      <p>You have <span qu-key="conf/app/unread" qu-format="count"></span> unread items.</p>
+      <p>The active title is <span qu-key="conf/app/title"></span>.</p>
+      <p><span class="small-text">Hover this title label:</span> <span qu-key="conf/app/title" qu-bind="attr:title">reactive tooltip target</span></p>
+    </div>
+    <pre><code>&lt;p&gt;Welcome back, &lt;span qu-key="~/alias"&gt;&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;You have &lt;span qu-key="conf/app/unread" qu-format="count"&gt;&lt;/span&gt; unread.&lt;/p&gt;</code></pre>
+  </article>
+
+  <article class="card">
+    <h2>Two-way input binding</h2>
+    <p>Change the input to update QuDB, the inline mirror, and the browser title simultaneously.</p>
+    <div class="inline-demo">
+      <label for="app-title-input">App title</label>
+      <input id="app-title-input" qu-key="conf/app/title" qu-bind="value" qu-mode="two-way" qu-live>
+      <p class="small-text">Current browser title: <strong id="browser-title-text"></strong></p>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2><code>qu-bind</code> with a native template</h2>
+    <p>Use this when a single key drives a larger DOM fragment.</p>
+    <qu-bind id="message-card-binding" key="@demo/messages/entry-001">
+      <template>
+        <article class="demo-panel">
+          <strong data-qu-bind="data.text"></strong>
+          <div class="small-text">Created <span data-qu-bind="ts" data-qu-format="datetime"></span></div>
+        </article>
+      </template>
+    </qu-bind>
+  </article>
+
+  <article class="card">
+    <h2>Editable list rows</h2>
+    <p>Click the 📝 text to edit inline, confirm with ✅, cancel with ✖, delete with 🗑. All actions write through QuDB.</p>
+    <div class="demo-actions" style="margin-bottom:12px">
+      <input id="new-todo-input" class="demo-input compact" placeholder="Add a demo todo item…">
+      <button class="success" id="add-todo-button">+ Add</button>
+    </div>
+    <ul id="todo-list-el" class="stack" style="list-style:none;padding:0;margin:0"></ul>
+    <div class="small-text" style="margin-top:12px;color:var(--muted)">
+      Click any item text to edit it. Changes write directly to QuDB.
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Transient DOM cleanup</h2>
+    <p>Native binding listeners are removed automatically when the element leaves the DOM.</p>
+    <div class="demo-actions">
+      <button id="spawn-transient-button">Create transient bound element</button>
+      <button id="remove-transient-button" class="warning">Remove transient element</button>
+    </div>
+    <div id="transient-host" class="inline-demo" style="margin-top:12px"></div>
+    <div class="metric-grid" style="margin-top:12px">
+      <div class="metric">
+        <div class="metric-label">Active native bindings</div>
+        <div class="metric-value" id="native-binding-count">0</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Developer console snippets</h2>
+    <pre><code id="dev-console-code-block"></code></pre>
+  </article>
+
+  <article class="card">
+    <h2>Demo log</h2>
+    <div id="bindings-log" class="demo-log"></div>
+  </article>
+</section>
+
+<script type="module">
+import QuRay, { KEY, registerComponents } from '../src/quray.js'
+
+const qr = await QuRay.init({
+  alias: 'Binding Demo User',
+  ui: true,
+  binding: true,
+  directives: false,
+})
+
+window.qrDemo = qr
+registerComponents(qr.db, { me: qr.me, peers: qr.peers, net: qr._.net })
+
+const logEl          = document.getElementById('bindings-log')
+const todoInputEl    = document.getElementById('new-todo-input')
+const todoListEl     = document.getElementById('todo-list-el')
+const browserTitleEl = document.getElementById('browser-title-text')
+
+// ── Logging ──────────────────────────────────────────────────────────────────
+
+const writeLog = (msg, level = 'info') => {
+  const line = document.createElement('div')
+  line.className = `log-line log-${level}`
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+  logEl.appendChild(line)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+// ── Todo list rendering ───────────────────────────────────────────────────────
+// Manual rendering (proven approach from feature-lab) — no qu-list template issues.
+
+const _renderTodoList = async () => {
+  const items = await qr.db.query('@demo/todos/', { order: 'ts' })
+  todoListEl.innerHTML = ''
+
+  if (!items.length) {
+    todoListEl.innerHTML = '<li class="small-text" style="padding:10px 0;color:var(--muted)">No items yet. Add one above.</li>'
+    return
+  }
+
+  for (const q of items) {
+    const li = document.createElement('li')
+    li.className = 'demo-list-item'
+    li.dataset.todoKey = q.key
+
+    // ── Main row ──────────────────────────────────────────────────────────────
+    const mainRow = document.createElement('div')
+    mainRow.className = 'demo-inline-item-row demo-list-main'
+
+    const labelEl = document.createElement('span')
+    labelEl.className = 'small-text'
+    labelEl.style.cssText = 'opacity:.5;font-size:11px;display:block;margin-bottom:2px'
+    labelEl.textContent = q.key.split('/').pop()
+
+    const textEl = document.createElement('span')
+    textEl.className = 'demo-editable-text'
+    textEl.title = 'Click to edit'
+    textEl.dataset.todoAction = 'edit'
+    textEl.textContent = q.data?.text ?? ''
+
+    const textWrap = document.createElement('div')
+    textWrap.style.flex = '1 1 auto'
+    textWrap.append(labelEl, textEl)
+
+    const delBtn = document.createElement('button')
+    delBtn.className = 'btn-icon danger'
+    delBtn.title = 'Delete item'
+    delBtn.dataset.todoAction = 'delete'
+    delBtn.textContent = '🗑'
+
+    mainRow.append(textWrap, delBtn)
+
+    // ── Edit row ──────────────────────────────────────────────────────────────
+    const editRow = document.createElement('div')
+    editRow.className = 'demo-row-edit'
+    editRow.hidden = true
+
+    const editInput = document.createElement('input')
+    editInput.className = 'demo-input compact'
+    editInput.type = 'text'
+    editInput.value = q.data?.text ?? ''
+    editInput.style.flex = '1 1 auto'
+    editInput.dataset.todoEditInput = 'true'
+
+    const saveBtn = document.createElement('button')
+    saveBtn.className = 'btn-icon success'
+    saveBtn.title = 'Save changes'
+    saveBtn.dataset.todoAction = 'save'
+    saveBtn.textContent = '✅'
+
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'btn-icon'
+    cancelBtn.title = 'Cancel edit'
+    cancelBtn.dataset.todoAction = 'cancel'
+    cancelBtn.textContent = '✖'
+
+    editRow.append(editInput, saveBtn, cancelBtn)
+    li.append(mainRow, editRow)
+    todoListEl.appendChild(li)
+  }
+}
+
+// ── Todo actions ──────────────────────────────────────────────────────────────
+
+const _startEdit = (liEl) => {
+  liEl.querySelector('.demo-list-main').hidden = true
+  const editRow = liEl.querySelector('.demo-row-edit')
+  const input   = liEl.querySelector('[data-todo-edit-input]')
+  const textEl  = liEl.querySelector('.demo-editable-text')
+  if (input) input.value = textEl?.textContent?.trim() ?? ''
+  editRow.hidden = false
+  input?.focus()
+  input?.select()
+}
+
+const _cancelEdit = (liEl) => {
+  liEl.querySelector('.demo-list-main').hidden = false
+  liEl.querySelector('.demo-row-edit').hidden = true
+}
+
+const _saveEdit = async (liEl) => {
+  const key   = liEl.dataset.todoKey
+  const input = liEl.querySelector('[data-todo-edit-input]')
+  const text  = input?.value?.trim()
+  if (!key || !text) return
+  const q = await qr.db.get(key)
+  if (!q) return
+  await qr.db.put(key, { ...(q.data ?? {}), text })
+  _cancelEdit(liEl)
+  writeLog(`Updated "${text}"`, 'success')
+}
+
+const _deleteTodo = async (key) => {
+  await qr.db.del(key)
+  writeLog(`Deleted ${key.split('/').pop()}`, 'warning')
+}
+
+const _addTodo = async () => {
+  const text = todoInputEl.value.trim()
+  if (!text) return
+  const key  = `@demo/todos/${Date.now()}-${crypto.randomUUID().slice(0, 6)}`
+  await qr.db.put(key, { text })
+  todoInputEl.value = ''
+  todoInputEl.focus()
+  writeLog(`Added "${text}"`, 'success')
+}
+
+// ── Event delegation on the list ─────────────────────────────────────────────
+
+todoListEl.addEventListener('click', async (e) => {
+  const actionEl = e.target.closest('[data-todo-action]')
+  if (!actionEl) return
+  const liEl = e.target.closest('[data-todo-key]')
+  const key  = liEl?.dataset?.todoKey
+  const act  = actionEl.dataset.todoAction
+
+  if (act === 'edit' && liEl) _startEdit(liEl)
+  if (act === 'cancel' && liEl) _cancelEdit(liEl)
+  if (act === 'save' && liEl) await _saveEdit(liEl)
+  if (act === 'delete' && key) await _deleteTodo(key)
+})
+
+todoListEl.addEventListener('keydown', async (e) => {
+  if (e.key === 'Escape') {
+    const liEl = e.target.closest('[data-todo-key]')
+    if (liEl) _cancelEdit(liEl)
+  }
+  if (e.key === 'Enter') {
+    const input = e.target.closest('[data-todo-edit-input]')
+    if (!input) return
+    e.preventDefault()
+    const liEl = e.target.closest('[data-todo-key]')
+    if (liEl) await _saveEdit(liEl)
+  }
+})
+
+// ── React to DB changes — re-render the list on any todo write ────────────────
+qr.db.on('@demo/todos/**', () => _renderTodoList())
+
+// ── Seed demo data ────────────────────────────────────────────────────────────
+
+const ensureAcl = () => qr.db.put(KEY.space('demo').acl, {
+  owner: qr.me.pub, writers: [qr.me.pub]
+})
+
+const seedData = async () => {
+  await ensureAcl()
+  await qr.db.put('~' + qr.me.pub + '/alias', 'Binding Demo User')
+  await qr.db.put('conf/app/unread', 2)
+  await qr.db.put('conf/app/title', 'QuRay Binding Demo')
+  await qr.db.put('@demo/messages/entry-001', { text: 'The message card is powered by qu-bind.' })
+
+  const existing = await qr.db.query('@demo/todos/', { includeDeleted: true })
+  for (const q of existing) await qr.db.del(q.key, { hard: true })
+
+  await qr.db.put('@demo/todos/001', { text: 'Use span for inline values' })
+  await qr.db.put('@demo/todos/002', { text: 'Use qu-bind or qu-list for templates' })
+  await qr.db.put('@demo/todos/003', { text: 'Click any row text to edit it ✏️' })
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+await seedData()
+await _renderTodoList()
+
+browserTitleEl.textContent = document.title
+qr.db.on('conf/app/title', (q) => { browserTitleEl.textContent = q?.data ?? '—' }, { immediate: true })
+
+document.getElementById('dev-console-code-block').textContent = [
+  'await qrDemo.db.put("@demo/todos/" + Date.now(), { text: "Added via console" })',
+  'await qrDemo.db.put("conf/app/title", "Console updated title")',
+  'await qrDemo.db.put("~" + qrDemo.me.pub + "/alias", "Console alias")',
+].join('\n')
+
+// ── Button handlers ───────────────────────────────────────────────────────────
+
+document.getElementById('add-todo-button').addEventListener('click', _addTodo)
+todoInputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') _addTodo() })
+
+document.getElementById('increase-unread-button').addEventListener('click', async () => {
+  const q = await qr.db.get('conf/app/unread')
+  const n = Number(q?.data ?? 0) + 1
+  await qr.db.put('conf/app/unread', n)
+  writeLog(`Unread counter → ${n}`, 'success')
+})
+
+document.getElementById('reset-demo-button').addEventListener('click', async () => {
+  await seedData()
+  await _renderTodoList()
+  writeLog('Demo data reset', 'info')
+})
+
+document.getElementById('spawn-transient-button').addEventListener('click', async () => {
+  const host = document.getElementById('transient-host')
+  host.innerHTML = ''
+  const el = document.createElement('span')
+  el.setAttribute('qu-key', '~/alias')
+  host.appendChild(el)
+  qr._.ui.binding?.refresh(host)
+  writeLog('Transient bound element created', 'info')
+  updateStats()
+})
+
+document.getElementById('remove-transient-button').addEventListener('click', () => {
+  const host = document.getElementById('transient-host')
+  host.innerHTML = ''
+  qr._.ui.binding?.refresh(host)
+  writeLog('Transient element removed — listener cleaned up', 'warning')
+  updateStats()
+})
+
+const updateStats = () => {
+  const stats = qr._.ui.binding?.getStats?.() ?? { nativeBindingCount: 0 }
+  document.getElementById('native-binding-count').textContent = String(stats.nativeBindingCount)
+}
+setInterval(updateStats, 500)
+updateStats()
+writeLog('Bindings demo ready ✓', 'success')
+</script>
+</body>
+</html>

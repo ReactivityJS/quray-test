@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title qu-key="conf/app/title" qu-placeholder="QuRay Bindings">QuRay Bindings</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+</head>
+<body>
+<header class="demo-header">
+  <div>
+    <h1>Bindings-Test</h1>
+    <p>Inline-Bindings, Zwei-Wege-Input, reaktive Listen. Alle Änderungen via <code>db.on()</code>.</p>
+  </div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button class="primary" id="btn-inc">Unread +1</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+</header>
+
+<section class="layout-grid two-columns">
+
+  <article class="card">
+    <h2>Inline-Bindings</h2>
+    <div class="inline-demo stack">
+      <p>Willkommen, <strong><span qu-key="~/alias"></span></strong>.</p>
+      <p>Ungelesene Nachrichten: <strong><span qu-key="conf/app/unread" qu-format="count"></span></strong></p>
+      <p>App-Titel: <em><span qu-key="conf/app/title"></span></em></p>
+      <p><span class="small-text">Hover:</span>
+         <span qu-key="conf/app/title" qu-bind="attr:title">reaktiver Tooltip</span></p>
+    </div>
+    <pre style="margin-top:10px"><code>&lt;span qu-key="~/alias"&gt;&lt;/span&gt;
+&lt;span qu-key="conf/app/unread" qu-format="count"&gt;&lt;/span&gt;</code></pre>
+  </article>
+
+  <article class="card">
+    <h2>Zwei-Wege-Input &amp; Page-Title</h2>
+    <div class="inline-demo stack">
+      <label class="small-text">App-Titel (ändert auch Tab-Titel)</label>
+      <input qu-key="conf/app/title" qu-bind="value" qu-mode="two-way" qu-live class="demo-input">
+      <label class="small-text">Operator Alias</label>
+      <input qu-key="~/alias" qu-bind="value" qu-mode="two-way" qu-live class="demo-input">
+      <p class="small-text">Browser-Tab-Titel: <strong id="tab-title-mirror">—</strong></p>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Click-to-Edit Liste</h2>
+    <div class="demo-actions" style="margin-bottom:10px">
+      <input id="new-item" class="demo-input compact" placeholder="Neues Element…">
+      <button class="success" id="btn-add">+ Add</button>
+    </div>
+    <!-- Reaktiv: ausschließlich via db.on() gepflegt -->
+    <ul id="item-list" class="stack" style="list-style:none;padding:0;margin:0">
+      <li class="small-text" style="color:var(--muted)">Lade…</li>
+    </ul>
+  </article>
+
+  <article class="card">
+    <h2>Dev-Console Snippets</h2>
+    <p class="small-text">Befehle, die du in der Browser-Konsole ausführen kannst. Alle Änderungen
+       sind sofort reaktiv in der UI sichtbar.</p>
+    <div class="stack">
+      <div>
+        <div class="small-text" style="margin-bottom:4px">Operator-Alias überschreiben:</div>
+        <pre id="snippet-alias" style="margin:0;font-size:11px;cursor:pointer" title="Klicken zum Kopieren"></pre>
+      </div>
+      <div>
+        <div class="small-text" style="margin-bottom:4px">App-Titel ändern:</div>
+        <pre id="snippet-title" style="margin:0;font-size:11px;cursor:pointer" title="Klicken zum Kopieren"></pre>
+      </div>
+      <div>
+        <div class="small-text" style="margin-bottom:4px">Unread-Counter setzen:</div>
+        <pre id="snippet-unread" style="margin:0;font-size:11px;cursor:pointer" title="Klicken zum Kopieren"></pre>
+      </div>
+      <div>
+        <div class="small-text" style="margin-bottom:4px">Alle Items abfragen:</div>
+        <pre id="snippet-query" style="margin:0;font-size:11px;cursor:pointer" title="Klicken zum Kopieren"></pre>
+      </div>
+    </div>
+    <p class="small-text" style="margin-top:8px;opacity:.6">Klick auf Snippet → in Zwischenablage</p>
+  </article>
+
+  <article class="card" style="grid-column:1/-1">
+    <h2>Demo-Log <span class="small-text" style="font-weight:400">(reaktive Events)</span></h2>
+    <div id="log" class="demo-log"></div>
+  </article>
+
+</section>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+
+import QuRay, { KEY } from '../src/quray.js'
+import { createTimer } from './lib/demo-runtime.js'
+
+const logEl = document.getElementById('log')
+const log = (msg, level='info') => {
+  const d = document.createElement('div')
+  d.className = `log-line log-${level}`
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight
+}
+
+const t = createTimer(msg => log(msg))
+t.step('Start')
+
+const qr = await QuRay.init({
+  alias:    'Bindings Demo',
+  ui:       true,
+  binding:  true,
+  directives: false,
+})
+t.step('QuRay.init')
+
+// Seed
+await qr.db.put('conf/app/unread', 3)
+await qr.db.put('conf/app/title', 'QuRay Bindings-Test')
+t.done('Seed')
+
+log('QuRay bereit. Ändere die Eingabefelder — die Bindings reagieren sofort.', 'success')
+
+// ── Page-title reaktiv via db.on() ────────────────────────────────────────────
+qr.db.on('conf/app/title', (q) => {
+  const title = q?.data ?? ''
+  document.title = title
+  document.getElementById('tab-title-mirror').textContent = title
+})
+
+// ── Dev-Console Snippets ──────────────────────────────────────────────────────
+const pub64 = qr.me.pub64
+const snippets = {
+  'snippet-alias':  `window.qrDemo.db.put('~${pub64}/alias', 'Neuer Name')`,
+  'snippet-title':  `window.qrDemo.db.put('conf/app/title', 'Mein Titel')`,
+  'snippet-unread': `window.qrDemo.db.put('conf/app/unread', 42)`,
+  'snippet-query':  `window.qrDemo.db.query('@demo/items/').then(console.table)`,
+}
+for (const [id, code] of Object.entries(snippets)) {
+  const el = document.getElementById(id)
+  el.textContent = code
+  el.onclick = () => {
+    navigator.clipboard?.writeText(code).catch(() => {})
+    el.style.outline = '1px solid var(--success)'
+    setTimeout(() => el.style.outline = '', 800)
+  }
+}
+window.qrDemo = qr
+
+// ── Reaktive Item-Map ─────────────────────────────────────────────────────────
+const PREFIX  = '@demo/items/'
+const itemMap = new Map()
+
+function renderList() {
+  const listEl   = document.getElementById('item-list')
+  const sorted   = [...itemMap.values()].filter(q => !q.deleted).sort((a,b) => a.ts-b.ts)
+  if (!sorted.length) {
+    listEl.innerHTML = '<li class="small-text" style="padding:8px 0;color:var(--muted)">Keine Einträge</li>'
+    return
+  }
+  listEl.innerHTML = ''
+  for (const q of sorted) {
+    const text = q.data?.text ?? String(q.data ?? '')
+    const li   = document.createElement('li')
+    li.className   = 'demo-list-item'
+    li.dataset.key = q.key
+    li.innerHTML   = `
+      <div class="demo-inline-item-row">
+        <span class="demo-editable-text" data-action="edit" title="Klicken zum Bearbeiten">${text}</span>
+        <button class="btn-icon danger" data-action="del">🗑</button>
+      </div>
+      <div class="demo-row-edit" hidden>
+        <input class="demo-input compact" style="flex:1" value="${text}">
+        <button class="btn-icon success" data-action="save">✅</button>
+        <button class="btn-icon" data-action="cancel">✖</button>
+      </div>`
+    listEl.appendChild(li)
+  }
+}
+
+// Reaktivitätsmodus 2: Initial + Live
+qr.db.on(PREFIX + '**', (q, { event }) => {
+  if (event === 'del' || q.deleted) itemMap.delete(q.key)
+  else itemMap.set(q.key, q)
+  log(`db.on [${event}]: ${q.key.split('/').pop()}`)
+  renderList()
+})
+
+const initial = await qr.db.query(PREFIX, { order:'ts' })
+for (const q of initial) itemMap.set(q.key, q)
+renderList()
+
+// ── Buttons ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-inc').onclick = async () => {
+  const q = await qr.db.get('conf/app/unread')
+  await qr.db.put('conf/app/unread', (q?.data ?? 0) + 1)
+}
+document.getElementById('btn-reset').onclick = async () => {
+  await qr.db.put('conf/app/unread', 0)
+  await qr.db.put('conf/app/title', 'QuRay Bindings-Test')
+  log('Reset', 'warning')
+}
+
+document.getElementById('btn-add').onclick = async () => {
+  const input = document.getElementById('new-item')
+  const text  = input.value.trim()
+  if (!text) return
+  await qr.db.put(`${PREFIX}${Date.now()}`, { text })
+  input.value = ''
+}
+document.getElementById('new-item').onkeydown = e => {
+  if (e.key === 'Enter') document.getElementById('btn-add').click()
+}
+
+document.getElementById('item-list').addEventListener('click', async e => {
+  const li = e.target.closest('[data-key]')
+  if (!li) return
+  const action = e.target.dataset.action
+  if (action === 'edit') {
+    li.querySelector('.demo-inline-item-row').hidden = true
+    li.querySelector('.demo-row-edit').hidden = false
+    li.querySelector('.demo-row-edit input').focus()
+  } else if (action === 'cancel') {
+    li.querySelector('.demo-inline-item-row').hidden = false
+    li.querySelector('.demo-row-edit').hidden = true
+  } else if (action === 'del') {
+    await qr.db.del(li.dataset.key)
+  } else if (action === 'save') {
+    const val = li.querySelector('.demo-row-edit input').value.trim()
+    await qr.db.put(li.dataset.key, { text: val })
+  }
+})
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{
+  "name": "quray",
+  "version": "0.2.0",
+  "description": "Offline-first reactive P2P database framework with E2E encryption, sync, blobs and 33 Custom Elements",
+  "type": "module",
+  "main": "./src/quray.js",
+  "module": "./src/quray.js",
+  "exports": {
+    ".": "./src/quray.js",
+    "./src": "./src/quray.js",
+    "./core": "./src/core-entry.js",
+    "./sync": "./src/sync-entry.js",
+    "./relay": "./relay.js",
+    "./src/relay": "./src/relay/peer.js"
+  },
+  "scripts": {
+    "start": "node relay.js",
+    "relay": "node relay.js",
+    "test": "node tests/run-node.mjs",
+    "test:node": "node tests/run-node.mjs",
+    "test:framework": "node tests/framework.test.js",
+    "test:modular": "node tests/modular.test.js",
+    "test:contracts": "node tests/api.contract.test.js",
+    "test:serve": "node tests/server.mjs",
+    "test:listeners": "node tests/db-listener-contract.test.js",
+    "test:binding-helpers": "node tests/value-binding-helpers.test.js",
+    "test:access": "node tests/access-control.test.js",
+    "test:delete": "node tests/delete-tombstone-sync.test.js",
+    "test:blob-progress": "node tests/blob-progress-relay.test.js",
+    "test:peers": "node tests/peer-sync.test.js",
+    "test:sync": "node tests/delete-tombstone-sync.test.js"
+  },
+  "files": [
+    "src/",
+    "tests/",
+    "docs/",
+    "relay.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0",
+    "ws": "^8.14.0"
+  },
+  "optionalDependencies": {
+    "web-push": "^3.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "p2p",
+    "reactive",
+    "indexeddb",
+    "e2e-encryption",
+    "web-components",
+    "offline-first",
+    "crdt"
+  ]
+}

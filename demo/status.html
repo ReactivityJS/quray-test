@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay User-Status</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.status-indicator{width:12px;height:12px;border-radius:50%;display:inline-block;
+  flex-shrink:0;box-shadow:0 0 0 2px var(--background)}
+.si-online{background:var(--success)}.si-offline{background:var(--muted)}
+.si-hidden{background:var(--warning)}.si-dnd{background:var(--danger)}
+.peer-row{display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid var(--border)}
+.peer-row:last-child{border-bottom:none}
+.peer-info{flex:1}
+.peer-name{font-weight:600;font-size:14px}
+.peer-detail{font-size:11px;color:var(--muted)}
+.status-select{background:#0b1016;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:4px 8px;font:inherit;font-size:12px}
+.enc-label{font-size:11px;padding:2px 6px;border-radius:99px;border:1px solid var(--border);
+  color:var(--muted);display:inline-block}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>User-Status</h1>
+    <p>Online/Offline via <code>sys/peers/**</code> (QuPresence).
+       Sichtbarkeit via self-encrypted <code>~pub/status</code> QuBit.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">Peers initialisieren…</div>
+</div>
+
+<section class="layout-grid two-columns">
+
+  <article class="card">
+    <h2>Mein Status</h2>
+    <p class="small-text">Status wird als AtomicQuBit gespeichert.
+       Ob sichtbar oder privat, hängt davon ab, ob das QuBit verschlüsselt ist.</p>
+    <div class="stack">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="my-status" class="status-select">
+          <option value="online">🟢 Online</option>
+          <option value="busy">🔴 Beschäftigt</option>
+          <option value="away">🟡 Abwesend</option>
+          <option value="invisible">⚫ Unsichtbar</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="enc-status"> Privat (nur für Bob lesbar)
+        </label>
+        <button class="primary" id="btn-set-status">Status setzen</button>
+      </div>
+
+      <div class="demo-panel">
+        <div class="small-text" style="margin-bottom:6px;color:var(--muted)">Gespeichertes QuBit (Alice)</div>
+        <div id="alice-status-raw" style="font:12px var(--mono);color:var(--text)">—</div>
+      </div>
+
+      <div class="demo-panel">
+        <div class="small-text" style="margin-bottom:6px;color:var(--muted)">Bob sieht (entschlüsselt)</div>
+        <div id="bob-sees" style="font:12px var(--mono);color:var(--text)">—</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Peer-Presence (Relay)</h2>
+    <p class="small-text">
+      <code>sys/peers/**</code> — via <code>peer.hello</code> / <code>peer.bye</code>.
+      Reaktiv — kein manuelles Refresh.
+    </p>
+    <div id="peer-list" style="min-height:60px">
+      <div class="small-text" style="color:var(--muted)">Keine Peers online.</div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="small-text" style="margin-bottom:8px;color:var(--muted)">Simuliere Presence-Events:</div>
+      <div class="demo-actions">
+        <button id="btn-alice-hello" class="success">Alice: peer.hello</button>
+        <button id="btn-alice-bye" class="warning">Alice: peer.bye</button>
+        <button id="btn-bob-hello" class="success">Bob: peer.hello</button>
+      </div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Konzept: Sichtbarkeits-Kontrolle</h2>
+    <div class="stack" style="font-size:13px;line-height:1.6">
+      <div class="demo-panel">
+        <strong>Öffentlich (unverschlüsselt)</strong><br>
+        <code>~pub/status → "online"</code><br>
+        <span style="color:var(--muted)">Jeder Peer mit Relay-Zugang kann den Status lesen.</span>
+      </div>
+      <div class="demo-panel">
+        <strong>Privat (self-encrypted)</strong><br>
+        <code>~pub/status → {ct:…, by:alice.pub}</code><br>
+        <span style="color:var(--muted)">Nur Alice kann lesen. Anderen Peers: sehen nur <code>🔒 enc</code>.</span>
+      </div>
+      <div class="demo-panel">
+        <strong>Selektiv (multi-recipient)</strong><br>
+        <code>~pub/status → {ct:…, keys:{bobPub:…}}</code><br>
+        <span style="color:var(--muted)">Alice + Bob können lesen. Envelope-Verschlüsselung.</span>
+      </div>
+      <div class="demo-panel">
+        <strong>Unsichtbar</strong><br>
+        Kein <code>peer.hello</code> senden + Status-QuBit löschen.<br>
+        <span style="color:var(--muted)">Erscheint nicht in <code>sys/peers/</code>.</span>
+      </div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Log</h2>
+    <div id="log" class="demo-log"></div>
+  </article>
+
+</section>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import { createDemoPair, createTimer, createLogWriter } from './lib/demo-runtime.js'
+import { QuPresence } from '../src/core/presence.js'
+
+const logEl = document.getElementById('log')
+const log   = createLogWriter(logEl)
+const t     = createTimer(msg => log(msg))
+
+t.step('Start')
+const { relay, alice, bob } = await createDemoPair({ timer: t })
+window.qrPeers = { alice, bob, relay: typeof relay !== "undefined" ? relay : null }
+t.step('Peers bereit')
+
+// Attach presence to both peers
+const alicePresence = QuPresence({ db: alice.db, identity: alice.identity })
+alicePresence.attach(alice.sync)
+const bobPresence = QuPresence({ db: bob.db, identity: bob.identity })
+bobPresence.attach(bob.sync)
+
+document.getElementById('init-overlay').remove()
+t.done('Init')
+
+// ── Status-Key ────────────────────────────────────────────────────────────────
+const statusKey = (pub) => `~${pub}/status`
+
+// ── Reaktive Peer-Liste via sys/peers/** ──────────────────────────────────────
+// QuPresence schreibt sys/peers/{pub64} wenn peer.hello empfangen
+const peerMap = new Map()
+
+alice.db.on('sys/peers/**', (q, { event }) => {
+  const pub = q?.data?.pub ?? q?.key?.split('/').pop()
+  if (!pub) return
+  if (event === 'del' || q.deleted || !q.data?.online) {
+    peerMap.delete(pub)
+    log(`Peer offline: ${q.data?.alias ?? pub.slice(0,12)}…`, 'warning')
+  } else {
+    peerMap.set(pub, q.data)
+    log(`Peer online: ${q.data?.alias ?? pub.slice(0,12)}…`, 'success')
+  }
+  renderPeers()
+})
+
+function renderPeers() {
+  const listEl = document.getElementById('peer-list')
+  if (!peerMap.size) {
+    listEl.innerHTML = '<div class="small-text" style="color:var(--muted)">Keine Peers online.</div>'
+    return
+  }
+  listEl.innerHTML = [...peerMap.values()].map(p => `
+    <div class="peer-row">
+      <span class="status-indicator si-online"></span>
+      <div class="peer-info">
+        <div class="peer-name">${p.alias ?? '—'}</div>
+        <div class="peer-detail">${(p.pub??'').slice(0,20)}…</div>
+      </div>
+    </div>`).join('')
+}
+
+// ── Status-QuBit reaktiv beobachten ──────────────────────────────────────────
+alice.db.on(statusKey(alice.pub), async (q) => {
+  const raw = q?.data
+  const isEnc = raw && typeof raw === 'object' && raw.ct
+  document.getElementById('alice-status-raw').textContent = isEnc
+    ? `{ct: "${raw.ct.slice(0,20)}…", by: "${(raw.by??'').slice(0,12)}…"}`
+    : String(raw ?? '—')
+})
+
+// Bob lauscht auf Alice Status und versucht zu entschlüsseln
+alice.db.on(statusKey(alice.pub), async (q) => {
+  const raw = q?.data
+  if (!raw) { document.getElementById('bob-sees').textContent = '(kein Status)'; return }
+  if (typeof raw === 'object' && raw.ct) {
+    try {
+      const plain = await bob.identity.decrypt(raw, bob.identity.epub)
+      document.getElementById('bob-sees').textContent = `entschlüsselt: "${plain}"`
+    } catch {
+      document.getElementById('bob-sees').textContent = '🔒 (Bob kann nicht entschlüsseln)'
+    }
+  } else {
+    document.getElementById('bob-sees').textContent = `öffentlich: "${raw}"`
+  }
+})
+
+// ── Status setzen ─────────────────────────────────────────────────────────────
+document.getElementById('btn-set-status').onclick = async () => {
+  const status = document.getElementById('my-status').value
+  const priv   = document.getElementById('enc-status').checked
+
+  if (status === 'invisible') {
+    // Unsichtbar: Status-QuBit löschen
+    await alice.db.del(statusKey(alice.pub))
+    log('Alice: Unsichtbar (Status gelöscht)', 'info')
+    return
+  }
+
+  let data
+  if (priv) {
+    // Privat für Bob: multi-recipient Verschlüsselung
+    try {
+      data = await alice.identity.encrypt(status, [alice.identity.epub, bob.identity.epub])
+      log(`Status "${status}" verschlüsselt für Alice+Bob`, 'info')
+    } catch {
+      data = await alice.identity.encrypt(status, alice.identity.epub)
+      log(`Status "${status}" self-encrypted`, 'info')
+    }
+  } else {
+    data = status
+    log(`Status "${status}" öffentlich gesetzt`, 'success')
+  }
+
+  // AtomicQuBit: genau eine Property pro Key
+  await alice.db.put(statusKey(alice.pub), data)
+}
+
+// ── Simulierte Presence ───────────────────────────────────────────────────────
+document.getElementById('btn-alice-hello').onclick = async () => {
+  // Simuliere peer.hello indem wir direkt in sys/peers/ schreiben
+  await alice.db._internal.write(`sys/peers/${alice.pub.slice(0,20)}`, {
+    key: `sys/peers/${alice.pub.slice(0,20)}`,
+    type:'data', data:{ pub:alice.pub, alias:'Alice', epub:alice.identity.epub, online:true },
+    ts:Date.now(), from:alice.pub, _status:'synced', enc:null, refs:[], deleted:false, sig:null, hash:null,
+  })
+  await alice.db._internal.bus.emit(`sys/peers/${alice.pub.slice(0,20)}`,
+    { data:{ pub:alice.pub, alias:'Alice', epub:alice.identity.epub, online:true }, key:`sys/peers/${alice.pub.slice(0,20)}` },
+    { event:'put', key:`sys/peers/${alice.pub.slice(0,20)}`, source:'local', scope:'data',
+      current:{ data:{ online:true, alias:'Alice', pub:alice.pub } }, previous:null })
+}
+
+document.getElementById('btn-alice-bye').onclick = async () => {
+  peerMap.delete(alice.pub.slice(0,20))
+  log('Alice: peer.bye (simuliert)', 'warning')
+  renderPeers()
+}
+
+document.getElementById('btn-bob-hello').onclick = async () => {
+  await alice.db._internal.write(`sys/peers/${bob.pub.slice(0,20)}`, {
+    key: `sys/peers/${bob.pub.slice(0,20)}`,
+    type:'data', data:{ pub:bob.pub, alias:'Bob', epub:bob.identity.epub, online:true },
+    ts:Date.now(), from:bob.pub, _status:'synced', enc:null, refs:[], deleted:false, sig:null, hash:null,
+  })
+  peerMap.set(bob.pub.slice(0,20), { pub:bob.pub, alias:'Bob', epub:bob.identity.epub, online:true })
+  log('Bob: peer.hello (simuliert)', 'success')
+  renderPeers()
+}
+</script>
+</body>
+</html>

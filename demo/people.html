@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay People</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.people-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-top:12px}
+.person-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:12px;
+  padding:14px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--surface);
+  border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px}
+.person-alias{font-weight:600;font-size:14px}
+.person-pub{font-size:10px;color:var(--muted);font-family:var(--mono);word-break:break-all}
+.person-detail{font-size:11px;color:var(--muted)}
+.source-badge{font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid;margin-top:4px}
+.source-local{color:var(--success);border-color:rgba(66,211,146,.35)}
+.source-remote{color:var(--primary);border-color:rgba(103,183,255,.35)}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>People</h1>
+    <p>Zeigt <strong>lokale</strong> User (<code>~</code>) und <strong>remote</strong> User (per <code>remoteQuery</code>).<br>
+       Reaktiv via <code>db.on()</code>. AtomicQuBits: <code>~pub/alias</code>, <code>~pub/age</code> …</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button class="success" id="btn-seed">+ Demo-User lokal</button>
+    <button class="primary" id="btn-relay">↻ Vom Relay laden</button>
+    <button id="btn-toggle-local" class="warning">Lokale ausblenden</button>
+  </div>
+</header>
+
+<section class="layout-grid two-columns" style="margin-bottom:14px">
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label">Lokal (∼)</div>
+      <div class="metric-value" id="m-local">0</div></div>
+    <div class="metric"><div class="metric-label">Remote (Relay)</div>
+      <div class="metric-value" id="m-remote">0</div></div>
+    <div class="metric"><div class="metric-label">Gesamt</div>
+      <div class="metric-value" id="m-total">0</div></div>
+    <div class="metric"><div class="metric-label">Query-Modus</div>
+      <div class="metric-value" id="m-mode" style="font-size:12px">local+remote</div></div>
+  </div>
+  <div class="card" style="padding:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h2 style="margin:0;font-size:14px">Log</h2>
+      <input id="f-search" class="demo-input" style="width:130px;font-size:12px;padding:4px 8px" placeholder="Suche…">
+    </div>
+    <div id="log" class="demo-log" style="min-height:60px;max-height:130px"></div>
+  </div>
+</section>
+
+<!-- Konzept: combined query -->
+<div class="card" style="margin-bottom:14px;padding:12px">
+  <div style="display:flex;gap:8px;align-items:flex-start">
+    <span style="font-size:16px">💡</span>
+    <div style="font-size:12px;line-height:1.6;color:var(--muted)">
+      <strong style="color:var(--text)">Kombinierte Query:</strong>
+      Lokale User aus <code>~</code> + remote User aus <code>sys/remote/people/</code> werden
+      gemergt und nach pub dedupliziert. <br>
+      <code>remoteQuery</code> schreibt in <code>targetMount</code> → beide Quellen landen
+      in QuDB → <code>db.on()</code> reagiert auf beide automatisch.
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 8px">User-Liste
+    <span class="small-text" style="font-weight:400;font-size:12px">
+      — <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+        background:var(--success);animation:pulse 1.5s infinite;vertical-align:middle"></span>
+      reaktiv
+    </span>
+  </h2>
+  <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
+  <div class="people-grid" id="people-grid">
+    <div class="small-text" style="color:var(--muted)">Klicke „Demo-User lokal" oder „Vom Relay".</div>
+  </div>
+</div>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import QuRay from '../src/quray.js'
+import { Identity } from '../src/core/identity.js'
+import { createTimer, createLogWriter } from './lib/demo-runtime.js'
+import { RelaySession } from './lib/demo-session.js'
+import { MemoryBackend } from '../src/backends/memory.js'
+
+const logEl = document.getElementById('log')
+const log   = createLogWriter(logEl)
+const t     = createTimer(msg => log(msg))
+
+t.step('Start')
+const session  = RelaySession()
+const relayUrl = session.relayUrl()
+
+const qr = await QuRay.init({ alias:'People Demo', relay: relayUrl??undefined, ui:false, binding:false })
+window.qr = qr
+t.done('QuRay.init')
+
+// ── Mount für Remote-User — einmalig registrieren ─────────────────────────────
+const REMOTE_MOUNT   = 'sys/remote/people/'
+const remoteBackend  = MemoryBackend()
+qr.db.mountBackend(REMOTE_MOUNT, remoteBackend)
+
+const EMOJIS = ['👤','🧑','👩','👨','🧑‍💻','👩‍💻','🧙','🦸','🧑‍🎤','👩‍🔬']
+
+let showLocal = true
+
+// ── Lokale User aus ~ namespace ────────────────────────────────────────────────
+// Alle ~pub/field QuBits lokal → gruppiere nach pub
+async function getLocalUsers() {
+  const qubits = await qr.db.query('~', { includeDeleted:false })
+  const users  = new Map()
+  for (const q of qubits) {
+    const m = q.key.match(/^~([^/]+)\/(.+)$/)
+    if (!m) continue
+    const [, pub, field] = m
+    if (!users.has(pub)) users.set(pub, { pub, fields:{}, source:'local' })
+    users.get(pub).fields[field] = q.data
+  }
+  return [...users.values()]
+}
+
+// ── Remote User aus targetMount ────────────────────────────────────────────────
+async function getRemoteUsers() {
+  const qubits = await qr.db.query(REMOTE_MOUNT, { includeDeleted:false })
+  const users  = new Map()
+  for (const q of qubits) {
+    if (!q.key.startsWith(REMOTE_MOUNT)) continue
+    const tail = q.key.slice(REMOTE_MOUNT.length)
+    const slash = tail.indexOf('/')
+    if (slash === -1) continue
+    const pub   = tail.slice(0, slash)
+    const field = tail.slice(slash + 1)
+    if (!pub || pub.length < 4) continue
+    if (!users.has(pub)) users.set(pub, { pub, fields:{}, source:'remote' })
+    users.get(pub).fields[field] = q.data
+  }
+  return [...users.values()]
+}
+
+// ── Kombinierte Query: lokal + remote, dedupliziert nach pub ──────────────────
+async function getMergedUsers() {
+  const [local, remote] = await Promise.all([getLocalUsers(), getRemoteUsers()])
+  const merged = new Map()
+  if (showLocal) for (const u of local)  merged.set(u.pub, u)
+  for (const u of remote) {
+    if (merged.has(u.pub)) {
+      // Merge remote fields into existing local entry (remote enriches local)
+      const existing = merged.get(u.pub)
+      merged.set(u.pub, { ...existing, fields:{ ...u.fields, ...existing.fields }, source:'local+remote' })
+    } else {
+      merged.set(u.pub, u)
+    }
+  }
+  return [...merged.values()]
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+async function render() {
+  const search = document.getElementById('f-search').value.toLowerCase()
+  const users  = await getMergedUsers()
+  const local  = users.filter(u => u.source==='local' || u.source==='local+remote')
+  const remote = users.filter(u => u.source==='remote')
+
+  document.getElementById('m-local').textContent  = String(local.length)
+  document.getElementById('m-remote').textContent = String(remote.length)
+  document.getElementById('m-total').textContent  = String(users.length)
+  document.getElementById('m-mode').textContent   = showLocal ? 'local+remote' : 'remote only'
+
+  const filtered = search
+    ? users.filter(u => String(u.fields.alias??'').toLowerCase().includes(search) || u.pub.includes(search))
+    : users
+
+  const grid = document.getElementById('people-grid')
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="small-text" style="color:var(--muted)">Keine User.</div>'
+    return
+  }
+  grid.innerHTML = filtered.map(u => {
+    const alias  = u.fields.alias ?? u.pub.slice(0,12)+'…'
+    const emoji  = EMOJIS[u.pub.charCodeAt(0) % EMOJIS.length]
+    const age    = u.fields.age ? `Alter: ${u.fields.age}` : ''
+    const srcLabel = { local:'lokal', remote:'remote', 'local+remote':'lokal+remote' }[u.source] ?? u.source
+    const srcClass = u.source.includes('remote') ? 'source-remote' : 'source-local'
+    return `<div class="person-card">
+      <div class="avatar">${emoji}</div>
+      <div class="person-alias">${alias}</div>
+      ${age ? `<div class="person-detail">${age}</div>` : ''}
+      <div class="person-pub">${u.pub.slice(0,20)}…</div>
+      <span class="source-badge ${srcClass}">${srcLabel}</span>
+    </div>`
+  }).join('')
+}
+
+// ── Reaktiv: db.on() auf beide Quellen ────────────────────────────────────────
+// WICHTIG: '~**' matcht NICHT — der EventBus trennt an '/', also ist '~MFkwABC'
+// ein einzelnes Segment. Das sigil ~ ist kein eigener Separator.
+// Lösung: '**' abonnieren und im Callback auf ~-Prefix filtern.
+qr.db.on('**', (q, { event, key }) => {
+  if (key && (key.startsWith('~') || key.startsWith(REMOTE_MOUNT))) {
+    render()
+  }
+})
+
+// ── Demo-User lokal anlegen ────────────────────────────────────────────────────
+document.getElementById('btn-seed').onclick = async () => {
+  const btn = document.getElementById('btn-seed')
+  btn.disabled = true; btn.textContent = '…'
+  const st = createTimer(msg => log(msg))
+  st.step('ECDSA-Keypairs generieren')
+
+  const [idAlice, idBob, idCarla] = await Promise.all([
+    Identity({ alias:'Alice' }),
+    Identity({ alias:'Bob' }),
+    Identity({ alias:'Carla' }),
+  ])
+  st.step('3 Keypairs bereit')
+
+  // Jede Property als separates AtomicQuBit via db.put() schreiben.
+  // db.put() durchläuft die volle OUT-Pipeline (SignPlugin → StoreOut → DispatchPlugin)
+  // und feuert damit automatisch alle db.on() Listener — keine manuelle bus.emit nötig.
+  // Da es fremde Pubs sind (nicht qr.me.pub), schreiben wir direkt in die DB
+  // mit _internal.write() + bus.emit() — db.put() würde die Signatur von qr.me verwenden.
+  for (const [id, age] of [[idAlice,28],[idBob,34],[idCarla,26],[qr.me, qr.me.alias?.length?28:null]]) {
+    const pub = id.pub ?? id.pub64
+    if (!pub) continue
+    const fields = [
+      [`~${pub}/alias`, id.alias ?? 'Unknown'],
+      [`~${pub}/epub`,  id.epub ?? ''],
+      ...(age != null ? [[`~${pub}/age`, age]] : []),
+    ]
+    for (const [key, data] of fields) {
+      const q = { key, type:'data', data, ts:Date.now(), from:pub,
+        _status:'synced', enc:null, refs:[], order:null, deleted:false, sig:null, hash:null }
+      await qr.db._internal.write(key, q)
+      // Manuell den Bus feuern — rawWrite löst keinen Event aus
+      await qr.db._internal.bus.emit(key, q, {
+        event:'put', key, source:'local', scope:'data', current:q, previous:null,
+      })
+    }
+    log(`User angelegt: ${id.alias ?? pub.slice(0,12)}…`, 'success')
+  }
+
+  st.done('Demo-User angelegt (Alice, Bob, Carla + Me)')
+  btn.disabled = false; btn.textContent = '+ Demo-User lokal'
+}
+
+// ── Remote laden (Relay) ───────────────────────────────────────────────────────
+document.getElementById('btn-relay').onclick = async () => {
+  if (!relayUrl) {
+    log('Kein Relay — zeige lokale User (lokal anlegen via Demo-User Button)', 'warning')
+    await render()
+    return
+  }
+  const rt = createTimer(msg => log(msg))
+  rt.step('remoteQuery ~')
+  try {
+    const rows = await qr.remoteQuery('~', {
+      order:'ts-desc', limit:500, persist:'session',
+    })
+    rt.step(`${rows.length} QuBits empfangen`)
+
+    // Remappen: ~pub/field → REMOTE_MOUNT pub/field (Hierarchie beibehalten)
+    for (const q of rows) {
+      const m = q.key.match(/^~([^/]+)\/(.+)$/)
+      if (!m) continue
+      const [, pub, field] = m
+      const targetKey = `${REMOTE_MOUNT}${pub}/${field}`
+      const mapped = { ...q, key:targetKey }
+      await qr.db._internal.write(targetKey, mapped)
+      await qr.db._internal.bus.emit(targetKey, mapped, {
+        event:'put', key:targetKey, source:'remote-query',
+        scope:'data', current:mapped, previous:null,
+      })
+    }
+    rt.done(`${rows.length} QuBits gemountet`)
+  } catch(e) {
+    log('Fehler: '+e.message, 'danger')
+  }
+}
+
+// ── Toggle lokale User ─────────────────────────────────────────────────────────
+document.getElementById('btn-toggle-local').onclick = async () => {
+  showLocal = !showLocal
+  document.getElementById('btn-toggle-local').textContent =
+    showLocal ? 'Lokale ausblenden' : 'Lokale einblenden'
+  await render()
+}
+
+document.getElementById('f-search').oninput = render
+await render()
+</script>
+</body>
+</html>

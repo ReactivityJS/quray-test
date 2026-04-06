@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>QuRay HTML API reference</title><link rel="stylesheet" href="/docs/assets/site.css"></head><body><div class="layout"><aside class="sidebar"><div class="brand"><div class="brand-mark">⬡</div><div><div class="brand-title">QuRay Docs</div><div class="brand-subtitle">Public API by module</div></div></div><nav class="sidebar-nav"><h2>Overview</h2><a data-nav-link href="/docs/index.html">Documentation home</a><a data-nav-link href="/docs/examples/index.html">Examples and demos</a><h2>API</h2><a data-nav-link href="/docs/api/index.html">API overview</a><a data-nav-link href="/docs/api/db.html">QuDB</a><a data-nav-link href="/docs/api/net.html">QuNet</a><a data-nav-link href="/docs/api/sync.html">QuSync</a><a data-nav-link href="/docs/api/ui-binding.html">UI binding</a><a data-nav-link href="/docs/api/blobs.html">Blobs and delivery</a><a data-nav-link href="/docs/api/relay.html">Relay and replicas</a><h2>Live pages</h2><a data-nav-link href="/demo/index.html">Demo gallery</a><a data-nav-link href="/demo/bindings-live.html">Bindings live</a><a data-nav-link href="/demo/blobs-live.html">Blob flow live</a><a data-nav-link href="/demo/feature-lab.html">Feature lab</a><a data-nav-link href="/tests/interactive/index.html">Interactive manual test</a></nav></aside><main class="content"><section class="hero"><h1>HTML API reference</h1><p>This section focuses on the public API that should remain stable across framework changes. Internal helpers are intentionally omitted unless they matter for plugins, tooling, or debugging.</p></section><section class="section"><h2>Module map</h2><div class="card-grid"><article class="card"><h3><a href="/docs/api/db.html">QuDB</a></h3><p>Local data core, mount routing, data/blob/delivery listeners, tombstones, and blob storage.</p></article><article class="card"><h3><a href="/docs/api/net.html">QuNet</a></h3><p>Transport runtime, endpoints, connection state, and packet routing.</p></article><article class="card"><h3><a href="/docs/api/sync.html">QuSync</a></h3><p>Replica subscriptions, pulls, live sync, queue-backed blob upload/download, and relay-facing behaviour.</p></article><article class="card"><h3><a href="/docs/api/ui-binding.html">UI binding</a></h3><p>Native <code>qu-*</code> attributes, <code>qu-bind</code>, <code>qu-list</code>, and native template rendering.</p></article><article class="card"><h3><a href="/docs/api/blobs.html">Blobs and delivery</a></h3><p>Blob metadata, local and relay progress, delivery tracker states, and listener scopes.</p></article><article class="card"><h3><a href="/docs/api/relay.html">Relay and replicas</a></h3><p>Relay peer runtime, replica restore, local relay transport, and feature-lab wiring.</p></article></div></section><section class="section"><h2>Stable top-level QuRay surface</h2><pre><code>const qr = await QuRay.init(options)
+
+qr.db
+qr.me
+qr.peers
+qr.node
+qr.delivery
+qr.space(spaceId)
+qr.addRelay(urlOrConfig)
+qr.removeRelay(url)
+qr.destroy()
+
+qr._.net
+qr._.sync
+qr._.queue
+qr._.ui</code></pre></section><div class="footer"><p>This HTML documentation complements the Markdown sources in <code>docs/</code>.</p></div></main></div><script type="module" src="/docs/assets/site.js"></script></body></html>

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title qu-key="conf/lab/title" qu-placeholder="QuRay feature lab"></title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+</head>
+<body>
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status-text">Generating cryptographic identities…</div>
+  <div class="small-text" style="opacity:.6">This takes 2–4 seconds (ECDSA key generation)</div>
+</div>
+<header class="demo-header">
+  <div>
+    <h1>Interactive feature lab</h1>
+    <p>One page for visible end-to-end behaviour: inline bindings, ACL allow or deny, tombstones, list editing, blob replication, and manual verification with two browser peers and one in-memory relay.</p>
+  </div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Back to demo index</a>
+    <button class="primary" id="run-full-scenario-button">Run full scenario</button>
+    <button id="reset-lab-button">Reset lab</button>
+  </div>
+</header>
+
+<section class="layout-grid two-columns">
+  <article class="card">
+    <h2>Direct binding example</h2>
+    <p>The counter below stays reactive inside a sentence without any extra wrapper component.</p>
+    <div class="inline-demo stack">
+      <p>Operator <span qu-key="~/alias"></span> has <span qu-key="conf/lab/unread" qu-format="count"></span> pending feature checks.</p>
+      <label class="small-text" for="lab-title-input">Lab title</label>
+      <input id="lab-title-input" qu-key="conf/lab/title" qu-bind="value" qu-mode="two-way" qu-live>
+      <p class="small-text">Current title mirror: <span qu-key="conf/lab/title"></span> <span class="small-text">(also updates the browser tab title)</span></p>
+      <label class="small-text" for="lab-alias-input">Operator alias</label>
+      <input id="lab-alias-input" qu-key="~/alias" qu-bind="value" qu-mode="two-way" qu-live>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Scenario controls</h2>
+    <div class="demo-actions">
+      <button id="write-allowed-button" class="success">Allowed write</button>
+      <button id="write-denied-button" class="danger">Denied write</button>
+      <button id="tombstone-delete-button" class="warning">Tombstone delete</button>
+      <button id="blob-sync-button" class="primary">Text blob sync</button>
+    </div>
+    <p class="small-text">These buttons mirror the same boundaries as the automated tests: access control, tombstones, and relay-based blob replication.</p>
+  </article>
+
+  <article class="card">
+    <h2>Shared task list on Alice</h2>
+    <p>Add, edit, confirm with <strong>OK</strong>, or delete rows. Alice writes to the shared room, Bob mirrors the replicated count.</p>
+    <div class="demo-actions" style="margin-bottom:12px">
+      <input id="lab-new-task-input" class="demo-input compact" placeholder="Add a shared lab task">
+      <button class="success" id="lab-add-task-button">Add task</button>
+    </div>
+    <div class="metric-grid" style="margin-bottom:12px">
+      <div class="metric"><div class="metric-label">Alice task count</div><div class="metric-value" id="alice-task-count">0</div></div>
+      <div class="metric"><div class="metric-label">Bob mirrored count</div><div class="metric-value" id="bob-task-count">0</div></div>
+    </div>
+    <ul id="lab-task-list" class="stack" style="list-style:none; padding:0; margin:0"></ul>
+  </article>
+
+  <article class="card">
+    <h2>Peer panels</h2>
+    <div class="layout-grid two-columns">
+      <section class="peer-panel">
+        <div class="peer-title"><strong>Alice</strong><span class="status-pill ok" id="alice-status-pill">ready</span></div>
+        <table class="data-table"><tbody>
+          <tr><th>Alias</th><td id="alice-alias">—</td></tr>
+          <tr><th>Public key</th><td id="alice-public-key">—</td></tr>
+          <tr><th>Latest room entry</th><td id="alice-room-entry">—</td></tr>
+          <tr><th>Blob state</th><td id="alice-blob-state">idle</td></tr>
+        </tbody></table>
+      </section>
+      <section class="peer-panel">
+        <div class="peer-title"><strong>Bob</strong><span class="status-pill ok" id="bob-status-pill">ready</span></div>
+        <table class="data-table"><tbody>
+          <tr><th>Alias</th><td id="bob-alias">—</td></tr>
+          <tr><th>Public key</th><td id="bob-public-key">—</td></tr>
+          <tr><th>Latest room entry</th><td id="bob-room-entry">—</td></tr>
+          <tr><th>Blob state</th><td id="bob-blob-state">idle</td></tr>
+        </tbody></table>
+      </section>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Media blob replication</h2>
+    <p>Select an image, video, or audio file. The lab stores it on Alice, mirrors it through the relay replica, and previews the replicated media on Bob.</p>
+    <div class="stack">
+      <input id="lab-media-input" type="file" accept="image/*,video/*,audio/*">
+      <div class="demo-actions">
+        <button class="primary" id="lab-upload-media-button">Upload selected media</button>
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><div class="metric-label">Selected file</div><div class="metric-value" id="lab-selected-media-name" style="font-size:15px">none</div></div>
+        <div class="metric"><div class="metric-label">Relay blob status</div><div class="metric-value" id="relay-blob-status" style="font-size:15px">idle</div></div>
+        <div class="metric"><div class="metric-label">Bob blob text</div><div class="metric-value" id="bob-blob-text" style="font-size:14px">—</div></div>
+      </div>
+      <div class="media-preview-grid">
+        <div class="preview-shell preview-empty" id="lab-alice-preview-host">No local preview yet.</div>
+        <div class="preview-shell preview-empty" id="lab-bob-preview-host">No replicated preview yet.</div>
+      </div>
+      <div class="progress-row"><div class="small-text">Blob upload progress</div><progress id="lab-upload-progress" max="100" value="0"></progress></div>
+      <div class="progress-row"><div class="small-text">Blob download progress</div><progress id="lab-download-progress" max="100" value="0"></progress></div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Relay and assertion status</h2>
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-label">Relay peers</div><div class="metric-value" id="relay-peer-count">0</div></div>
+      <div class="metric"><div class="metric-label">Assertions passed</div><div class="metric-value" id="assertion-pass-count">0</div></div>
+      <div class="metric"><div class="metric-label">Assertions failed</div><div class="metric-value" id="assertion-fail-count">0</div></div>
+      <div class="metric"><div class="metric-label">Last uploaded hash</div><div class="metric-value" id="lab-last-blob-hash" style="font-size:13px">—</div></div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Developer console snippets</h2>
+    <p>The live runtimes are available as <code>featureLab.alice</code>, <code>featureLab.bob</code>, <code>featureLab.relay</code>, and <code>featureLab.operator</code>.</p>
+    <pre><code id="feature-lab-console-code"></code></pre>
+  </article>
+
+  <article class="card">
+    <h2>Scenario log</h2>
+    <div id="feature-lab-log" class="demo-log"></div>
+  </article>
+
+  <article class="card">
+    <h2>Manual verification checklist</h2>
+    <ol class="small-text">
+      <li>The inline counter inside the sentence should update without reloading the page.</li>
+      <li>The denied write should produce a visible failure log and must not appear under Bob's latest room entry.</li>
+      <li>The tombstone delete should make <code>db.get()</code> return <code>null</code> while the tombstone stays visible with <code>includeDeleted: true</code>.</li>
+      <li>Adding, editing, and deleting tasks through Alice should update the Alice list and Bob mirrored count.</li>
+      <li>The media blob sync should show progress bars moving and the replicated media should preview on Bob.</li>
+    </ol>
+  </article>
+</section>
+
+<div id="media-overlay" class="media-overlay" hidden>
+  <div class="media-overlay-backdrop" data-overlay-close></div>
+  <div class="media-overlay-dialog">
+    <div class="demo-actions" style="justify-content:space-between; width:100%">
+      <strong id="media-overlay-title">Preview</strong>
+      <button class="warning" data-overlay-close>Close</button>
+    </div>
+    <div id="media-overlay-content" class="media-overlay-content"></div>
+  </div>
+</div>
+
+<script type="module">
+import QuRay from '../src/quray.js'
+import {
+  KEY,
+  createDemoPair,
+  createLogWriter,
+  waitForAssertion,
+  arrayBufferFromText,
+  readTextFromBlobStatus,
+  formatPublicKeyShort,
+} from './lib/demo-runtime.js'
+
+const SHARED_ROOM_PREFIX = '@demo-room/messages/'
+const SHARED_TASK_PREFIX = '@demo-room/tasks/'
+const SHARED_ROOM_ENTRY_KEY = `${SHARED_ROOM_PREFIX}entry-001`
+const SHARED_ROOM_ACL_KEY = KEY.space('demo-room').acl
+const DEFAULT_LAB_TITLE = 'QuRay Feature Lab'
+const DEFAULT_UNREAD_COUNT = 4
+const DEFAULT_SHARED_ROOM_TEXT = 'Shared room entry from Alice.'
+
+const localUserRuntime = await QuRay.init({ alias: 'Feature Lab Operator', binding: true, ui: false, directives: false })
+await localUserRuntime.db.put(`~${localUserRuntime.me.pub}/alias`, 'Feature Lab Operator')
+await localUserRuntime.db.put('conf/lab/unread', DEFAULT_UNREAD_COUNT)
+await localUserRuntime.db.put('conf/lab/title', DEFAULT_LAB_TITLE)
+
+document.getElementById('init-status-text').textContent = 'Creating peer Alice…'
+const { relay, alice, bob } = await createDemoPair()
+document.getElementById('init-overlay').remove()
+window.featureLab = { relay, alice, bob, operator: localUserRuntime }
+
+const writeLog = createLogWriter(document.getElementById('feature-lab-log'))
+const assertionCounters = { pass: 0, fail: 0 }
+const taskListElement = document.getElementById('lab-task-list')
+const newTaskInputElement = document.getElementById('lab-new-task-input')
+const mediaInputElement = document.getElementById('lab-media-input')
+const selectedMediaNameElement = document.getElementById('lab-selected-media-name')
+const overlayElement = document.getElementById('media-overlay')
+const overlayTitleElement = document.getElementById('media-overlay-title')
+const overlayContentElement = document.getElementById('media-overlay-content')
+
+let selectedMediaFile = null
+let selectedMediaObjectUrl = null
+let mirroredMediaObjectUrl = null
+
+function revokeObjectUrl(objectUrl) {
+  if (objectUrl) URL.revokeObjectURL(objectUrl)
+}
+
+function updateAssertionCounters() {
+  document.getElementById('assertion-pass-count').textContent = String(assertionCounters.pass)
+  document.getElementById('assertion-fail-count').textContent = String(assertionCounters.fail)
+}
+
+function recordAssertion(label, passed, detail = '') {
+  if (passed) {
+    assertionCounters.pass += 1
+    writeLog(`PASS — ${label}${detail ? ` — ${detail}` : ''}`, 'success')
+  } else {
+    assertionCounters.fail += 1
+    writeLog(`FAIL — ${label}${detail ? ` — ${detail}` : ''}`, 'danger')
+  }
+  updateAssertionCounters()
+}
+
+function setPeerRowValue(targetId, value) {
+  document.getElementById(targetId).textContent = value == null ? '—' : String(value)
+}
+
+function refreshStaticPeerInfo() {
+  document.getElementById('alice-alias').textContent = alice.alias
+  document.getElementById('bob-alias').textContent = bob.alias
+  document.getElementById('alice-public-key').textContent = formatPublicKeyShort(alice.pub)
+  document.getElementById('bob-public-key').textContent = formatPublicKeyShort(bob.pub)
+  document.getElementById('relay-peer-count').textContent = String(relay.peers)
+}
+
+function updateTaskCounts(aliceTasks, bobTasks) {
+  document.getElementById('alice-task-count').textContent = String(aliceTasks.length)
+  document.getElementById('bob-task-count').textContent = String(bobTasks.length)
+}
+
+function createTaskKey() {
+  return `${SHARED_TASK_PREFIX}${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
+}
+
+function resetBlobProgressIndicators() {
+  document.getElementById('lab-upload-progress').value = 0
+  document.getElementById('lab-download-progress').value = 0
+  document.getElementById('alice-blob-state').textContent = 'idle'
+  document.getElementById('bob-blob-state').textContent = 'idle'
+  document.getElementById('relay-blob-status').textContent = 'idle'
+  document.getElementById('bob-blob-text').textContent = '—'
+  document.getElementById('lab-last-blob-hash').textContent = '—'
+}
+
+function updateConsoleSnippets() {
+  document.getElementById('feature-lab-console-code').textContent = [
+    '// Add a shared task through Alice',
+    'await featureLab.alice.db.put(`@demo-room/tasks/${Date.now()}`, { text: "Added from console" })',
+    '',
+    '// Replace the shared room message that Bob should receive',
+    'await featureLab.alice.db.put("@demo-room/messages/entry-001", { text: "Console updated room entry" })',
+    '',
+    '// Delete a task through a tombstone',
+    'await featureLab.alice.db.del("@demo-room/tasks/replace-with-real-key")',
+    '',
+    '// Upload a text blob manually',
+    'const buffer = new TextEncoder().encode("Console blob").buffer',
+    'const hash = await KEY.sha256url(buffer)',
+    'await featureLab.alice.db.blobs.put(hash, buffer, { mime: "text/plain", name: "console.txt" })',
+  ].join('\n')
+}
+
+function createMediaPreviewElement({ objectUrl, mimeType, fileName, allowOverlay = true }) {
+  const mediaKind = mimeType?.startsWith('image/') ? 'image' : mimeType?.startsWith('video/') ? 'video' : mimeType?.startsWith('audio/') ? 'audio' : 'file'
+  const containerElement = document.createElement('div')
+  containerElement.className = 'preview-stack'
+
+  let mediaElement = null
+  if (mediaKind === 'image') {
+    mediaElement = document.createElement('img')
+    mediaElement.src = objectUrl
+    mediaElement.alt = fileName
+  } else if (mediaKind === 'video') {
+    mediaElement = document.createElement('video')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.preload = 'metadata'
+  } else if (mediaKind === 'audio') {
+    mediaElement = document.createElement('audio')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.preload = 'metadata'
+  } else {
+    mediaElement = document.createElement('a')
+    mediaElement.href = objectUrl
+    mediaElement.target = '_blank'
+    mediaElement.textContent = `Download ${fileName}`
+  }
+
+  mediaElement.classList.add('preview-media')
+  containerElement.appendChild(mediaElement)
+
+  const captionElement = document.createElement('div')
+  captionElement.className = 'small-text'
+  captionElement.textContent = `${fileName} (${mimeType || 'application/octet-stream'})`
+  containerElement.appendChild(captionElement)
+
+  if (allowOverlay && (mediaKind === 'image' || mediaKind === 'video' || mediaKind === 'audio')) {
+    const maximizeButton = document.createElement('button')
+    maximizeButton.textContent = 'Maximize'
+    maximizeButton.addEventListener('click', () => {
+      openOverlay({ objectUrl, mimeType, fileName })
+    })
+    containerElement.appendChild(maximizeButton)
+  }
+
+  return containerElement
+}
+
+
+function createOverlayMediaElement({ objectUrl, mimeType, fileName }) {
+  const mediaKind = mimeType?.startsWith('image/') ? 'image' : mimeType?.startsWith('video/') ? 'video' : mimeType?.startsWith('audio/') ? 'audio' : 'file'
+  let mediaElement = null
+  if (mediaKind === 'image') {
+    mediaElement = document.createElement('img')
+    mediaElement.src = objectUrl
+    mediaElement.alt = fileName
+  } else if (mediaKind === 'video') {
+    mediaElement = document.createElement('video')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.autoplay = true
+    mediaElement.preload = 'metadata'
+  } else if (mediaKind === 'audio') {
+    mediaElement = document.createElement('audio')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.autoplay = true
+    mediaElement.preload = 'metadata'
+  } else {
+    mediaElement = document.createElement('a')
+    mediaElement.href = objectUrl
+    mediaElement.target = '_blank'
+    mediaElement.textContent = `Download ${fileName}`
+  }
+  mediaElement.classList.add('preview-media')
+  return mediaElement
+}
+
+function openOverlay({ objectUrl, mimeType, fileName }) {
+  overlayTitleElement.textContent = fileName
+  overlayContentElement.innerHTML = ''
+  const mediaElement = createOverlayMediaElement({ objectUrl, mimeType, fileName })
+  const metaElement = document.createElement('div')
+  metaElement.className = 'small-text'
+  metaElement.textContent = `${fileName} (${mimeType || 'application/octet-stream'})`
+  const downloadLinkElement = document.createElement('a')
+  downloadLinkElement.href = objectUrl
+  downloadLinkElement.download = fileName
+  downloadLinkElement.textContent = 'Download file'
+  overlayContentElement.append(mediaElement, metaElement, downloadLinkElement)
+  overlayElement.hidden = false
+  document.body.classList.add('overlay-open')
+}
+
+function closeOverlay() {
+  overlayElement.hidden = true
+  overlayContentElement.innerHTML = ''
+  document.body.classList.remove('overlay-open')
+}
+
+overlayElement.addEventListener('click', (mouseEvent) => {
+  if (mouseEvent.target.closest('[data-overlay-close]')) closeOverlay()
+})
+document.addEventListener('keydown', (keyboardEvent) => {
+  if (keyboardEvent.key === 'Escape' && !overlayElement.hidden) closeOverlay()
+})
+
+function renderPreview(hostId, previewConfig) {
+  const hostElement = document.getElementById(hostId)
+  hostElement.innerHTML = ''
+  hostElement.classList.remove('preview-empty')
+  hostElement.appendChild(createMediaPreviewElement(previewConfig))
+}
+
+function clearPreview(hostId, message) {
+  const hostElement = document.getElementById(hostId)
+  hostElement.innerHTML = message
+  hostElement.classList.add('preview-empty')
+}
+
+async function queryVisibleTasks(database) {
+  return database.query(SHARED_TASK_PREFIX)
+}
+
+async function renderSharedTaskList() {
+  const [aliceTasks, bobTasks] = await Promise.all([
+    queryVisibleTasks(alice.db),
+    queryVisibleTasks(bob.db),
+  ])
+  updateTaskCounts(aliceTasks, bobTasks)
+  taskListElement.innerHTML = ''
+
+  if (!aliceTasks.length) {
+    const emptyStateElement = document.createElement('li')
+    emptyStateElement.className = 'small-text'
+    emptyStateElement.textContent = 'No shared tasks yet.'
+    taskListElement.appendChild(emptyStateElement)
+    return
+  }
+
+  for (const taskRecord of aliceTasks) {
+    const itemElement = document.createElement('li')
+    itemElement.className = 'demo-list-item'
+    itemElement.dataset.taskKey = taskRecord.key
+
+    const mainRowElement = document.createElement('div')
+    mainRowElement.className = 'demo-inline-item-row demo-list-main'
+    const textWrapperElement = document.createElement('div')
+    const labelElement = document.createElement('span')
+    labelElement.className = 'small-text'
+    labelElement.textContent = taskRecord.key
+    const textElement = document.createElement('span')
+    textElement.className = 'demo-inline-text'
+    textElement.dataset.taskAction = 'edit-inline'
+    textElement.title = 'Click to edit this task'
+    textElement.textContent = taskRecord.data?.text ?? ''
+    textWrapperElement.append(labelElement, textElement)
+
+    const editRowElement = document.createElement('div')
+    editRowElement.className = 'demo-row-edit'
+    editRowElement.hidden = true
+    const editInputElement = document.createElement('input')
+    editInputElement.className = 'demo-input compact'
+    editInputElement.type = 'text'
+    editInputElement.value = taskRecord.data?.text ?? ''
+    editInputElement.dataset.taskEditInput = 'true'
+    const saveButtonElement = document.createElement('button')
+    saveButtonElement.className = 'success'
+    saveButtonElement.dataset.taskAction = 'save'
+    saveButtonElement.textContent = 'OK'
+    const cancelButtonElement = document.createElement('button')
+    cancelButtonElement.className = 'warning'
+    cancelButtonElement.dataset.taskAction = 'cancel'
+    cancelButtonElement.textContent = 'Cancel'
+    editRowElement.append(editInputElement, saveButtonElement, cancelButtonElement)
+
+    const deleteButtonElement = document.createElement('button')
+    deleteButtonElement.className = 'danger demo-inline-delete'
+    deleteButtonElement.dataset.taskAction = 'delete'
+    deleteButtonElement.title = 'Delete task'
+    deleteButtonElement.setAttribute('aria-label', 'Delete task')
+    deleteButtonElement.textContent = '×'
+    mainRowElement.append(textWrapperElement, deleteButtonElement)
+
+    itemElement.append(mainRowElement, editRowElement)
+    taskListElement.appendChild(itemElement)
+  }
+}
+
+function startTaskEdit(taskItemElement) {
+  const editRowElement = taskItemElement.querySelector('.demo-row-edit')
+  const mainRowElement = taskItemElement.querySelector('.demo-list-main')
+  const inputElement = taskItemElement.querySelector('[data-task-edit-input]')
+  if (!editRowElement || !mainRowElement || !inputElement) return
+  editRowElement.hidden = false
+  mainRowElement.hidden = true
+  inputElement.focus()
+  inputElement.select()
+}
+
+function cancelTaskEdit(taskItemElement) {
+  const editRowElement = taskItemElement.querySelector('.demo-row-edit')
+  const mainRowElement = taskItemElement.querySelector('.demo-list-main')
+  if (editRowElement) editRowElement.hidden = true
+  if (mainRowElement) mainRowElement.hidden = false
+}
+
+async function addSharedTaskFromInput() {
+  const nextText = newTaskInputElement.value.trim()
+  if (!nextText) return
+  const nextTaskKey = createTaskKey()
+  await alice.db.put(nextTaskKey, { text: nextText })
+  await waitForAssertion(async () => {
+    const mirroredTasks = await queryVisibleTasks(bob.db)
+    if (!mirroredTasks.some((taskRecord) => taskRecord.key === nextTaskKey && taskRecord.data?.text === nextText)) {
+      throw new Error('Bob task mirror missing newly added task')
+    }
+  })
+  newTaskInputElement.value = ''
+  await renderSharedTaskList()
+  writeLog(`Added shared task ${nextTaskKey}.`, 'success')
+}
+
+async function saveTaskEdit(taskItemElement) {
+  const taskKey = taskItemElement.dataset.taskKey
+  const inputElement = taskItemElement.querySelector('[data-task-edit-input]')
+  const nextText = inputElement?.value?.trim() ?? ''
+  if (!taskKey || !nextText) return
+  const currentTaskRecord = await alice.db.get(taskKey)
+  if (!currentTaskRecord) return
+  await alice.db.put(taskKey, { ...(currentTaskRecord.data ?? {}), text: nextText })
+  await waitForAssertion(async () => {
+    const mirroredTask = await bob.db.get(taskKey)
+    if (mirroredTask?.data?.text !== nextText) throw new Error('Bob task mirror missing edited value')
+  })
+  await renderSharedTaskList()
+  writeLog(`Updated shared task ${taskKey}.`, 'success')
+}
+
+async function deleteSharedTask(taskKey) {
+  const isConfirmed = window.confirm(`Delete ${taskKey}?`)
+  if (!isConfirmed) return
+  await alice.db.del(taskKey)
+  await waitForAssertion(async () => {
+    const mirroredTask = await bob.db.get(taskKey)
+    if (mirroredTask != null) throw new Error('Bob still sees deleted task')
+  })
+  await renderSharedTaskList()
+  writeLog(`Deleted shared task ${taskKey}.`, 'warning')
+}
+
+async function seedSharedRoomData() {
+  await alice.sync.subscribe('@demo-room/**', { snapshot: true, live: true })
+  await bob.sync.subscribe('@demo-room/**', { snapshot: true, live: true })
+  await alice.db.put(SHARED_ROOM_ACL_KEY, { owner: alice.pub, writers: [alice.pub] })
+
+  const existingAliceTaskRecords = await alice.db.query(SHARED_TASK_PREFIX, { includeDeleted: true })
+  const existingBobTaskRecords = await bob.db.query(SHARED_TASK_PREFIX, { includeDeleted: true })
+  for (const taskRecord of existingAliceTaskRecords) {
+    await alice.db.del(taskRecord.key, { hard: true })
+  }
+  for (const taskRecord of existingBobTaskRecords) {
+    await bob.db.del(taskRecord.key, { hard: true })
+  }
+  const existingAliceMessageRecords = await alice.db.query(SHARED_ROOM_PREFIX, { includeDeleted: true })
+  const existingBobMessageRecords = await bob.db.query(SHARED_ROOM_PREFIX, { includeDeleted: true })
+  for (const messageRecord of existingAliceMessageRecords) {
+    await alice.db.del(messageRecord.key, { hard: true })
+  }
+  for (const messageRecord of existingBobMessageRecords) {
+    await bob.db.del(messageRecord.key, { hard: true })
+  }
+
+  await alice.db.put(SHARED_ROOM_ENTRY_KEY, { text: DEFAULT_SHARED_ROOM_TEXT })
+  await alice.db.put(`${SHARED_TASK_PREFIX}001`, { text: 'Verify inline bindings and page title' })
+  await alice.db.put(`${SHARED_TASK_PREFIX}002`, { text: 'Try allowed and denied writes' })
+  await alice.db.put(`${SHARED_TASK_PREFIX}003`, { text: 'Upload media and confirm Bob preview' })
+
+  await waitForAssertion(async () => {
+    const bobRoomQuBit = await bob.db.get(SHARED_ROOM_ENTRY_KEY)
+    const bobTasks = await queryVisibleTasks(bob.db)
+    if (!bobRoomQuBit?.data?.text) throw new Error('Bob room entry missing')
+    if (bobTasks.length < 3) throw new Error('Bob task mirror incomplete')
+  }, { timeoutMilliseconds: 3000 })
+
+  setPeerRowValue('alice-room-entry', DEFAULT_SHARED_ROOM_TEXT)
+  setPeerRowValue('bob-room-entry', DEFAULT_SHARED_ROOM_TEXT)
+  await renderSharedTaskList()
+  writeLog('Initial ACL, room entry, and shared tasks created.', 'info')
+}
+
+async function resetLabState() {
+  assertionCounters.pass = 0
+  assertionCounters.fail = 0
+  updateAssertionCounters()
+  document.getElementById('feature-lab-log').innerHTML = ''
+  await localUserRuntime.db.put('conf/lab/unread', DEFAULT_UNREAD_COUNT)
+  await localUserRuntime.db.put('conf/lab/title', DEFAULT_LAB_TITLE)
+  await localUserRuntime.db.put(`~${localUserRuntime.me.pub}/alias`, 'Feature Lab Operator')
+  setPeerRowValue('alice-room-entry', '—')
+  setPeerRowValue('bob-room-entry', '—')
+  resetBlobProgressIndicators()
+  selectedMediaFile = null
+  mediaInputElement.value = ''
+  selectedMediaNameElement.textContent = 'none'
+  revokeObjectUrl(selectedMediaObjectUrl)
+  revokeObjectUrl(mirroredMediaObjectUrl)
+  selectedMediaObjectUrl = null
+  mirroredMediaObjectUrl = null
+  clearPreview('lab-alice-preview-host', 'No local preview yet.')
+  clearPreview('lab-bob-preview-host', 'No replicated preview yet.')
+  await seedSharedRoomData()
+  updateConsoleSnippets()
+  writeLog('Feature lab reset.', 'info')
+}
+
+alice.queue.on?.('task.progress', (task) => {
+  if (task.action === 'blob.upload') document.getElementById('lab-upload-progress').value = task.progress ?? 0
+})
+bob.queue.on?.('task.progress', (task) => {
+  if (task.action === 'blob.download') document.getElementById('lab-download-progress').value = task.progress ?? 0
+})
+
+refreshStaticPeerInfo()
+updateConsoleSnippets()
+resetBlobProgressIndicators()
+clearPreview('lab-alice-preview-host', 'No local preview yet.')
+clearPreview('lab-bob-preview-host', 'No replicated preview yet.')
+await seedSharedRoomData()
+
+mediaInputElement.addEventListener('change', () => {
+  selectedMediaFile = mediaInputElement.files?.[0] ?? null
+  selectedMediaNameElement.textContent = selectedMediaFile?.name ?? 'none'
+  revokeObjectUrl(selectedMediaObjectUrl)
+  selectedMediaObjectUrl = null
+  if (!selectedMediaFile) {
+    clearPreview('lab-alice-preview-host', 'No local preview yet.')
+    return
+  }
+  selectedMediaObjectUrl = URL.createObjectURL(selectedMediaFile)
+  renderPreview('lab-alice-preview-host', {
+    objectUrl: selectedMediaObjectUrl,
+    mimeType: selectedMediaFile.type,
+    fileName: selectedMediaFile.name,
+  })
+})
+
+newTaskInputElement.addEventListener('keydown', (keyboardEvent) => {
+  if (keyboardEvent.key === 'Enter') addSharedTaskFromInput()
+})
+
+document.getElementById('lab-add-task-button').addEventListener('click', addSharedTaskFromInput)
+
+taskListElement.addEventListener('click', async (mouseEvent) => {
+  const actionElement = mouseEvent.target.closest('[data-task-action]')
+  if (!actionElement) return
+  const taskItemElement = mouseEvent.target.closest('[data-task-key]')
+  if (!taskItemElement) return
+  const taskKey = taskItemElement.dataset.taskKey
+  if (actionElement.dataset.taskAction === 'edit-inline') startTaskEdit(taskItemElement)
+  if (actionElement.dataset.taskAction === 'cancel') cancelTaskEdit(taskItemElement)
+  if (actionElement.dataset.taskAction === 'save') await saveTaskEdit(taskItemElement)
+  if (actionElement.dataset.taskAction === 'delete' && taskKey) await deleteSharedTask(taskKey)
+})
+
+taskListElement.addEventListener('keydown', async (keyboardEvent) => {
+  if (keyboardEvent.key !== 'Enter') return
+  const editInputElement = keyboardEvent.target.closest('[data-task-edit-input]')
+  if (!editInputElement) return
+  keyboardEvent.preventDefault()
+  const taskItemElement = keyboardEvent.target.closest('[data-task-key]')
+  if (taskItemElement) await saveTaskEdit(taskItemElement)
+})
+
+async function runAllowedWriteScenario() {
+  const allowedKey = `${SHARED_ROOM_PREFIX}allowed-write`
+  await alice.db.put(allowedKey, { text: 'Allowed write from Alice.' })
+  await waitForAssertion(async () => {
+    const bobRecord = await bob.db.get(allowedKey)
+    if (bobRecord?.data?.text !== 'Allowed write from Alice.') throw new Error('Bob has not received allowed write yet')
+  })
+  setPeerRowValue('alice-room-entry', 'Allowed write from Alice.')
+  setPeerRowValue('bob-room-entry', 'Allowed write from Alice.')
+  recordAssertion('Allowed ACL write replicated', true)
+}
+
+async function runDeniedWriteScenario() {
+  const deniedKey = `${SHARED_ROOM_PREFIX}denied-write`
+  try {
+    await bob.db.put(deniedKey, { text: 'Bob should not write here.' })
+    recordAssertion('Denied ACL write should throw', false, 'write completed unexpectedly')
+  } catch (error) {
+    const bobRecord = await bob.db.get(deniedKey, { includeDeleted: true })
+    const deniedCorrectly = !bobRecord
+    recordAssertion('Denied ACL write should throw', deniedCorrectly, error.message)
+    if (deniedCorrectly) writeLog('Bob write denied as expected by access control.', 'warning')
+  }
+}
+
+async function runTombstoneScenario() {
+  const deletableKey = `${SHARED_ROOM_PREFIX}deletable-entry`
+  await alice.db.put(deletableKey, { text: 'Delete me through a tombstone.' })
+  await alice.db.del(deletableKey)
+  const visibleAfterDelete = await alice.db.get(deletableKey)
+  const tombstoneQuBit = await alice.db.get(deletableKey, { includeDeleted: true })
+  const tombstoneIsValid = visibleAfterDelete == null && tombstoneQuBit?.deleted === true
+  recordAssertion('Tombstone delete hides normal read and preserves deleted QuBit', tombstoneIsValid)
+}
+
+async function runTextBlobScenario() {
+  const blobText = 'Feature lab blob payload.'
+  const blobBuffer = arrayBufferFromText(blobText)
+  const blobHash = await KEY.sha256url(blobBuffer)
+  document.getElementById('alice-blob-state').textContent = 'pending'
+  document.getElementById('bob-blob-state').textContent = 'pending'
+  document.getElementById('relay-blob-status').textContent = 'storing'
+  document.getElementById('lab-last-blob-hash').textContent = blobHash
+  document.getElementById('lab-upload-progress').value = 0
+  document.getElementById('lab-download-progress').value = 0
+
+  await bob.sync.subscribe(`~${alice.pub}/blob/**`, { snapshot: true, live: true })
+  alice.db.blobs.on(blobHash, (entry) => { document.getElementById('alice-blob-state').textContent = entry?.status ?? 'unknown' })
+  bob.db.blobs.on(blobHash, (entry) => { document.getElementById('bob-blob-state').textContent = entry?.status ?? 'unknown' })
+
+  await alice.db.blobs.put(blobHash, blobBuffer, { mime: 'text/plain', name: 'feature-lab.txt' })
+  await waitForAssertion(async () => {
+    const text = await readTextFromBlobStatus(bob.db, blobHash)
+    if (text !== blobText) throw new Error('Bob has not downloaded the blob yet')
+    document.getElementById('bob-blob-text').textContent = text
+    document.getElementById('relay-blob-status').textContent = 'ready'
+  }, { timeoutMilliseconds: 3500 })
+  recordAssertion('Blob replication reaches peer two', true)
+}
+
+document.getElementById('write-allowed-button').addEventListener('click', runAllowedWriteScenario)
+document.getElementById('write-denied-button').addEventListener('click', runDeniedWriteScenario)
+document.getElementById('tombstone-delete-button').addEventListener('click', runTombstoneScenario)
+document.getElementById('blob-sync-button').addEventListener('click', runTextBlobScenario)
+
+document.getElementById('lab-upload-media-button').addEventListener('click', async () => {
+  if (!selectedMediaFile) {
+    window.alert('Please select an image, video, or audio file first.')
+    return
+  }
+
+  const mediaBuffer = await selectedMediaFile.arrayBuffer()
+  const mediaHash = await KEY.sha256url(mediaBuffer)
+  document.getElementById('lab-last-blob-hash').textContent = mediaHash
+  document.getElementById('alice-blob-state').textContent = 'pending'
+  document.getElementById('bob-blob-state').textContent = 'pending'
+  document.getElementById('relay-blob-status').textContent = 'storing'
+  document.getElementById('bob-blob-text').textContent = selectedMediaFile.type.startsWith('text/') ? 'pending' : 'media preview pending'
+  document.getElementById('lab-upload-progress').value = 0
+  document.getElementById('lab-download-progress').value = 0
+
+  await bob.sync.subscribe(`~${alice.pub}/blob/**`, { snapshot: true, live: true })
+  alice.db.blobs.on(mediaHash, (entry) => { document.getElementById('alice-blob-state').textContent = entry?.status ?? 'unknown' })
+  bob.db.blobs.on(mediaHash, (entry) => { document.getElementById('bob-blob-state').textContent = entry?.status ?? 'unknown' })
+
+  await alice.db.blobs.put(mediaHash, mediaBuffer, {
+    mime: selectedMediaFile.type,
+    name: selectedMediaFile.name,
+  })
+
+  await waitForAssertion(async () => {
+    const mirroredBuffer = await bob.db._internal.readBlobBuffer(mediaHash)
+    if (!mirroredBuffer) throw new Error('Bob media blob not downloaded yet')
+    document.getElementById('relay-blob-status').textContent = 'ready'
+  }, { timeoutMilliseconds: 3500 })
+
+  revokeObjectUrl(mirroredMediaObjectUrl)
+  const mirroredBlob = new Blob([await bob.db._internal.readBlobBuffer(mediaHash)], { type: selectedMediaFile.type || 'application/octet-stream' })
+  mirroredMediaObjectUrl = URL.createObjectURL(mirroredBlob)
+  renderPreview('lab-bob-preview-host', {
+    objectUrl: mirroredMediaObjectUrl,
+    mimeType: selectedMediaFile.type,
+    fileName: selectedMediaFile.name,
+  })
+  if (selectedMediaFile.type.startsWith('text/')) {
+    document.getElementById('bob-blob-text').textContent = await mirroredBlob.text()
+  } else {
+    document.getElementById('bob-blob-text').textContent = selectedMediaFile.type.split('/')[0]
+  }
+  recordAssertion('Media blob replicated to peer two', true, selectedMediaFile.name)
+  writeLog(`Replicated media blob ${selectedMediaFile.name} to Bob.`, 'success')
+})
+
+document.getElementById('run-full-scenario-button').addEventListener('click', async () => {
+  newTaskInputElement.value = newTaskInputElement.value.trim() || 'Run full scenario task'
+  await addSharedTaskFromInput()
+  await runAllowedWriteScenario()
+  await runDeniedWriteScenario()
+  await runTombstoneScenario()
+  await runTextBlobScenario()
+  const currentUnreadQuBit = await localUserRuntime.db.get('conf/lab/unread')
+  await localUserRuntime.db.put('conf/lab/unread', Number(currentUnreadQuBit?.data ?? 0) + 1)
+  writeLog('Full feature scenario complete.', 'success')
+})
+
+document.getElementById('reset-lab-button').addEventListener('click', resetLabState)
+
+writeLog('Feature lab ready. Run the scenario or trigger individual checks.', 'success')
+</script>
+</body>
+</html>

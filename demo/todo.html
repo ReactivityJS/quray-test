@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Shared ToDo</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<style>
+.todo-views{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media(max-width:700px){.todo-views{grid-template-columns:1fr}}
+.todo-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
+.todo-panel h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+.todo-item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:8px}
+.todo-item:last-child{border:none}
+.todo-text{flex:1;font-size:13px}
+.enc-badge{font-size:10px;padding:1px 5px;border-radius:99px;background:rgba(192,141,255,.15);
+  color:var(--purple);border:1px solid rgba(192,141,255,.3)}
+.atom-note{font-size:11px;color:var(--muted);padding:10px;background:rgba(255,255,255,.03);
+  border-radius:8px;border:1px solid var(--border);margin-top:10px;line-height:1.5}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div><h1>Shared ToDo</h1>
+    <p>Alice und Bob — reaktiv via <code>db.on()</code>. Beide Ansichten synchron.</p></div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <select id="enc-mode" style="background:#0b1016;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit">
+      <option value="plain">Kein Enc</option>
+      <option value="self">Self-encrypted</option>
+      <option value="shared">Enc für Alice+Bob</option>
+    </select>
+    <button id="btn-reset" class="warning">Reset</button>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">Peers initialisieren…</div>
+</div>
+
+<!-- Add form -->
+<div class="card" style="margin-bottom:12px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input id="new-task" class="demo-input" style="flex:1;min-width:200px" placeholder="Neue Aufgabe (von Alice)…">
+    <button class="success" id="btn-add">+ Hinzufügen</button>
+    <span id="enc-indicator" class="small-text" style="color:var(--muted)">● Kein Enc</span>
+  </div>
+  <!-- AtomicQuBit Hinweis -->
+  <div class="atom-note">
+    <strong>AtomicQuBit-Prinzip:</strong> Jeder Task ist ein QuBit <code>{ text }</code>.<br>
+    Bei gleichzeitigem Schreiben desselben Keys von zwei Peers gewinnt LWW (letzter Timestamp).<br>
+    Für unabhängig editierbare Felder → separate Keys: <code>tasks/001/text</code> + <code>tasks/001/done</code>.
+  </div>
+</div>
+
+<div class="todo-views">
+  <div class="todo-panel">
+    <h3>👩 Alice <span class="status-pill ok" id="alice-pill">bereit</span></h3>
+    <div id="alice-pub" class="small-text" style="font-family:var(--mono);margin-bottom:8px">…</div>
+    <ul id="alice-list" style="list-style:none;padding:0;margin:0"></ul>
+  </div>
+  <div class="todo-panel">
+    <h3>👨 Bob <span class="status-pill ok" id="bob-pill">bereit</span></h3>
+    <div id="bob-pub" class="small-text" style="font-family:var(--mono);margin-bottom:8px">…</div>
+    <ul id="bob-list" style="list-style:none;padding:0;margin:0"></ul>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <h2 style="margin:0 0 8px;font-size:14px">Sync-Log</h2>
+  <div class="metric-grid" style="margin-bottom:8px">
+    <div class="metric"><div class="metric-label">Alice Tasks</div><div class="metric-value" id="m-alice-c">0</div></div>
+    <div class="metric"><div class="metric-label">Bob Tasks</div><div class="metric-value" id="m-bob-c">0</div></div>
+    <div class="metric"><div class="metric-label">Sync-Events</div><div class="metric-value" id="m-sync">0</div></div>
+  </div>
+  <div id="log" class="demo-log"></div>
+</div>
+
+<script type="module">
+import { injectNav } from './lib/nav-snippet.js'
+injectNav()
+import { createDemoPair, createTimer, createLogWriter } from './lib/demo-runtime.js'
+
+const logEl = document.getElementById('log')
+const log   = createLogWriter(logEl)
+const t     = createTimer(msg => log(msg))
+
+t.step('Start')
+const { relay, alice, bob } = await createDemoPair({ timer: t })
+window.qrPeers = { alice, bob, relay: typeof relay !== "undefined" ? relay : null }
+
+// ── Space ACL ────────────────────────────────────────────────────────────────
+const SPACE  = 'shared-todo'
+const PREFIX = `@${SPACE}/tasks/`
+await alice.db.put(`@${SPACE}/~acl`, { owner: alice.pub, writers: '*' })
+t.done('Init + ACL')
+document.getElementById('init-overlay').remove()
+
+document.getElementById('alice-pub').textContent = alice.pub.slice(0,20)+'…'
+document.getElementById('bob-pub').textContent   = bob.pub.slice(0,20)+'…'
+
+// ── Enc mode ─────────────────────────────────────────────────────────────────
+let encMode = 'plain'
+const encSel = document.getElementById('enc-mode')
+encSel.onchange = () => {
+  encMode = encSel.value
+  const labels = { plain:'● Kein Enc', self:'🔐 Self-Enc', shared:'🔒 Shared Enc' }
+  document.getElementById('enc-indicator').textContent = labels[encMode]
+  log('Enc-Modus: ' + labels[encMode], 'info')
+}
+
+async function encodeTask(text) {
+  if (encMode === 'plain')   return { text }
+  if (encMode === 'self')    return alice.identity.encrypt(text, null)  // self only
+  // shared: encrypt für Alice+Bob — beide können lesen
+  return alice.identity.encrypt(text, [
+    { pub: alice.pub, epub: alice.identity.epub },
+    { pub: bob.pub,   epub: bob.identity.epub   },
+  ])
+}
+
+async function decodeTask(identity, data) {
+  if (!data) return '?'
+  if (typeof data === 'string') return data
+  if (!data.ct) return data.text ?? JSON.stringify(data)  // plain object
+  try { return await identity.decrypt(data) }
+  catch { return '🔒 nicht lesbar' }
+}
+
+// ── Reaktive Maps ─────────────────────────────────────────────────────────────
+const aliceTasks = new Map()
+const bobTasks   = new Map()
+let syncEvents   = 0
+
+async function renderFor(db, identity, mapRef, listEl, countEl) {
+  const sorted = [...mapRef.values()].filter(q => !q.deleted).sort((a,b) => a.ts-b.ts)
+  countEl.textContent = String(sorted.length)
+  if (!sorted.length) {
+    listEl.innerHTML = '<li class="small-text" style="color:var(--muted);padding:6px 0">Keine Aufgaben</li>'
+    return
+  }
+  listEl.innerHTML = ''
+  for (const q of sorted) {
+    const text   = await decodeTask(identity, q.data)
+    const isEnc  = q.data?.ct
+    const li     = document.createElement('li')
+    li.className = 'todo-item'
+    li.dataset.key = q.key
+    li.innerHTML = `
+      <span class="todo-text">${text}${isEnc?` <span class="enc-badge">enc</span>`:''}</span>
+      <button class="btn-icon danger" data-del="${q.key}">🗑</button>`
+    listEl.appendChild(li)
+  }
+}
+
+// ── db.on() für BEIDE Peers ───────────────────────────────────────────────────
+alice.db.on(PREFIX + '**', async (q, { event }) => {
+  syncEvents++
+  document.getElementById('m-sync').textContent = String(syncEvents)
+  if (event === 'del' || q.deleted) aliceTasks.delete(q.key)
+  else aliceTasks.set(q.key, q)
+  log(`Alice db.on [${event}]: ${q.key.split('/').pop()}`, 'info')
+  await renderFor(alice.db, alice.identity, aliceTasks,
+    document.getElementById('alice-list'), document.getElementById('m-alice-c'))
+})
+
+bob.db.on(PREFIX + '**', async (q, { event }) => {
+  syncEvents++
+  document.getElementById('m-sync').textContent = String(syncEvents)
+  if (event === 'del' || q.deleted) bobTasks.delete(q.key)
+  else bobTasks.set(q.key, q)
+  log(`Bob db.on [${event}]: ${q.key.split('/').pop()}`, 'info')
+  await renderFor(bob.db, bob.identity, bobTasks,
+    document.getElementById('bob-list'), document.getElementById('m-bob-c'))
+})
+
+// ── Delete delegiert ─────────────────────────────────────────────────────────
+for (const listId of ['alice-list', 'bob-list']) {
+  document.getElementById(listId).addEventListener('click', async e => {
+    const del = e.target.dataset.del
+    if (del) await alice.db.del(del)  // Alice ist Owner
+  })
+}
+
+// ── Add Task ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-add').onclick = async () => {
+  const input = document.getElementById('new-task')
+  const text  = input.value.trim()
+  if (!text) return
+  const key  = `${PREFIX}${Date.now()}-${Math.random().toString(36).slice(2,5)}`
+  // AtomicQuBit: { text } ist der vollständige Wert dieses Tasks-QuBits.
+  // Separate Felder (done, priority) → separate Keys für echte Atomizität.
+  const data = await encodeTask(text)
+  await alice.db.put(key, data)
+  input.value = ''
+  log(`Alice schreibt: "${text}" [${encMode}]`, 'success')
+}
+
+document.getElementById('new-task').onkeydown = e => {
+  if (e.key === 'Enter') document.getElementById('btn-add').click()
+}
+
+// Initiale Daten
+const init = await alice.db.query(PREFIX, { order:'ts' })
+for (const q of init) aliceTasks.set(q.key, q)
+await renderFor(alice.db, alice.identity, aliceTasks,
+  document.getElementById('alice-list'), document.getElementById('m-alice-c'))
+
+document.getElementById('btn-reset').onclick = async () => {
+  const all = await alice.db.query(PREFIX)
+  await Promise.all(all.map(q => alice.db.del(q.key)))
+  log('Alle Tasks gelöscht', 'warning')
+}
+</script>
+</body>
+</html>

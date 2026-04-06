@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuRay blob flow live demo</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+</head>
+<body>
+<header class="demo-header">
+  <div>
+    <h1>Blob flow live</h1>
+    <p>Select an image, video, or audio file. The page stores it locally on Alice, syncs it to the in-browser relay, downloads it on Bob, previews it with native HTML5 players, and supports a maximize overlay.</p>
+  </div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Back to demo index</a>
+    <button class="primary" id="run-blob-flow-button">Upload selected media</button>
+  </div>
+</header>
+
+<section class="layout-grid two-columns">
+  <article class="card">
+    <h2>1. Choose media</h2>
+    <div class="stack">
+      <input id="blob-file-input" type="file" accept="image/*,video/*,audio/*">
+      <p class="small-text">Images are shown inline. Video and audio use native HTML5 players. Click maximize to open the preview overlay.</p>
+      <div class="small-text">Selected file: <strong id="selected-file-name">none</strong></div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Blob progress</h2>
+    <div class="stack">
+      <div class="progress-row">
+        <div class="small-text">Upload progress from Alice to relay</div>
+        <progress id="upload-progress-bar" max="100" value="0"></progress>
+        <div id="upload-progress-label" class="small-text">0%</div>
+      </div>
+      <div class="progress-row">
+        <div class="small-text">Download progress from relay to Bob</div>
+        <progress id="download-progress-bar" max="100" value="0"></progress>
+        <div id="download-progress-label" class="small-text">0%</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Status summary</h2>
+    <table class="data-table">
+      <tbody>
+        <tr><th>Alice blob status</th><td id="alice-blob-status">idle</td></tr>
+        <tr><th>Bob blob status</th><td id="bob-blob-status">idle</td></tr>
+        <tr><th>Relay blob present</th><td id="relay-blob-status">unknown</td></tr>
+        <tr><th>Blob hash</th><td id="blob-hash-value">—</td></tr>
+        <tr><th>Blob name</th><td id="blob-name-value">—</td></tr>
+      </tbody>
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Previews</h2>
+    <div class="media-preview-grid">
+      <section>
+        <h3>Alice local preview</h3>
+        <div id="alice-preview-host" class="preview-shell preview-empty">No local preview yet.</div>
+      </section>
+      <section>
+        <h3>Bob synced preview</h3>
+        <div id="bob-preview-host" class="preview-shell preview-empty">No synced preview yet.</div>
+      </section>
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Developer console snippets</h2>
+    <pre><code id="blob-console-code"></code></pre>
+  </article>
+
+  <article class="card">
+    <h2>Log</h2>
+    <div id="blob-demo-log" class="demo-log"></div>
+  </article>
+</section>
+
+<div id="media-overlay" class="media-overlay" hidden>
+  <div class="media-overlay-backdrop" data-overlay-close></div>
+  <div class="media-overlay-dialog">
+    <div class="demo-actions" style="justify-content:space-between; width:100%">
+      <strong id="media-overlay-title">Preview</strong>
+      <button class="warning" data-overlay-close>Close</button>
+    </div>
+    <div id="media-overlay-content" class="media-overlay-content"></div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  KEY,
+  createDemoPair,
+  createLogWriter,
+  waitForAssertion,
+} from './lib/demo-runtime.js'
+
+const { relay, alice, bob } = await createDemoPair()
+window.blobDemo = { relay, alice, bob }
+
+const fileInputElement = document.getElementById('blob-file-input')
+const selectedFileNameElement = document.getElementById('selected-file-name')
+const writeLog = createLogWriter(document.getElementById('blob-demo-log'))
+const overlayElement = document.getElementById('media-overlay')
+const overlayContentElement = document.getElementById('media-overlay-content')
+const overlayTitleElement = document.getElementById('media-overlay-title')
+
+let selectedFile = null
+let selectedObjectUrl = null
+let bobObjectUrl = null
+
+function updateProgress(labelId, barId, value) {
+  document.getElementById(barId).value = value
+  document.getElementById(labelId).textContent = `${value}%`
+}
+
+function revokeObjectUrl(url) {
+  if (url) URL.revokeObjectURL(url)
+}
+
+function createMediaPreviewElement({ objectUrl, mimeType, fileName, allowOverlay = true }) {
+  const category = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('audio/') ? 'audio' : 'file'
+  const containerElement = document.createElement('div')
+  containerElement.className = 'preview-stack'
+
+  let mediaElement = null
+  if (category === 'image') {
+    mediaElement = document.createElement('img')
+    mediaElement.src = objectUrl
+    mediaElement.alt = fileName
+  } else if (category === 'video') {
+    mediaElement = document.createElement('video')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.preload = 'metadata'
+  } else if (category === 'audio') {
+    mediaElement = document.createElement('audio')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.preload = 'metadata'
+  } else {
+    mediaElement = document.createElement('a')
+    mediaElement.href = objectUrl
+    mediaElement.textContent = `Download ${fileName}`
+    mediaElement.target = '_blank'
+  }
+
+  mediaElement.classList.add('preview-media')
+  containerElement.appendChild(mediaElement)
+
+  const captionElement = document.createElement('div')
+  captionElement.className = 'small-text'
+  captionElement.textContent = `${fileName} (${mimeType || 'application/octet-stream'})`
+  containerElement.appendChild(captionElement)
+
+  if (allowOverlay && (category === 'image' || category === 'video' || category === 'audio')) {
+    const maximizeButton = document.createElement('button')
+    maximizeButton.textContent = 'Maximize'
+    maximizeButton.addEventListener('click', () => {
+      openOverlay({ objectUrl, mimeType, fileName })
+    })
+    containerElement.appendChild(maximizeButton)
+  }
+
+  return containerElement
+}
+
+function createOverlayMediaElement({ objectUrl, mimeType, fileName }) {
+  const mediaKind = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('audio/') ? 'audio' : 'file'
+  let mediaElement = null
+  if (mediaKind === 'image') {
+    mediaElement = document.createElement('img')
+    mediaElement.src = objectUrl
+    mediaElement.alt = fileName
+  } else if (mediaKind === 'video') {
+    mediaElement = document.createElement('video')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.autoplay = true
+    mediaElement.preload = 'metadata'
+  } else if (mediaKind === 'audio') {
+    mediaElement = document.createElement('audio')
+    mediaElement.src = objectUrl
+    mediaElement.controls = true
+    mediaElement.autoplay = true
+    mediaElement.preload = 'metadata'
+  } else {
+    mediaElement = document.createElement('a')
+    mediaElement.href = objectUrl
+    mediaElement.target = '_blank'
+    mediaElement.textContent = `Download ${fileName}`
+  }
+  mediaElement.classList.add('preview-media')
+  return mediaElement
+}
+
+function openOverlay({ objectUrl, mimeType, fileName }) {
+  overlayContentElement.innerHTML = ''
+  overlayTitleElement.textContent = fileName
+  const mediaElement = createOverlayMediaElement({ objectUrl, mimeType, fileName })
+  const metaElement = document.createElement('div')
+  metaElement.className = 'small-text'
+  metaElement.textContent = `${fileName} (${mimeType || 'application/octet-stream'})`
+  const downloadLinkElement = document.createElement('a')
+  downloadLinkElement.href = objectUrl
+  downloadLinkElement.download = fileName
+  downloadLinkElement.textContent = 'Download file'
+  overlayContentElement.append(mediaElement, metaElement, downloadLinkElement)
+  overlayElement.hidden = false
+  document.body.classList.add('overlay-open')
+}
+
+function closeOverlay() {
+  overlayElement.hidden = true
+  overlayContentElement.innerHTML = ''
+  document.body.classList.remove('overlay-open')
+}
+
+overlayElement.addEventListener('click', (mouseEvent) => {
+  if (mouseEvent.target.closest('[data-overlay-close]')) closeOverlay()
+})
+document.addEventListener('keydown', (keyboardEvent) => {
+  if (keyboardEvent.key === 'Escape' && !overlayElement.hidden) closeOverlay()
+})
+
+function renderPreview(hostId, previewConfig) {
+  const hostElement = document.getElementById(hostId)
+  hostElement.innerHTML = ''
+  hostElement.classList.remove('preview-empty')
+  hostElement.appendChild(createMediaPreviewElement(previewConfig))
+}
+
+function refreshConsoleSnippet() {
+  document.getElementById('blob-console-code').textContent = [
+    '// blobDemo exposes the live demo peers and relay in the browser console.',
+    'const file = document.querySelector("#blob-file-input").files[0]',
+    'const buffer = await file.arrayBuffer()',
+    'const hash = await KEY.sha256url(buffer)',
+    'await blobDemo.alice.db.blobs.put(hash, buffer, { mime: file.type, name: file.name })',
+    'await blobDemo.bob.sync.subscribe(`~${blobDemo.alice.pub}/blob/**`, { snapshot: true, live: true })',
+  ].join('\n')
+}
+
+alice.queue.on?.('task.progress', (task) => {
+  if (task.action !== 'blob.upload') return
+  updateProgress('upload-progress-label', 'upload-progress-bar', task.progress ?? 0)
+})
+bob.queue.on?.('task.progress', (task) => {
+  if (task.action !== 'blob.download') return
+  updateProgress('download-progress-label', 'download-progress-bar', task.progress ?? 0)
+})
+
+fileInputElement.addEventListener('change', () => {
+  selectedFile = fileInputElement.files?.[0] ?? null
+  selectedFileNameElement.textContent = selectedFile?.name ?? 'none'
+  revokeObjectUrl(selectedObjectUrl)
+  selectedObjectUrl = null
+  if (selectedFile) {
+    selectedObjectUrl = URL.createObjectURL(selectedFile)
+    renderPreview('alice-preview-host', {
+      objectUrl: selectedObjectUrl,
+      mimeType: selectedFile.type,
+      fileName: selectedFile.name,
+    })
+  } else {
+    document.getElementById('alice-preview-host').textContent = 'No local preview yet.'
+    document.getElementById('alice-preview-host').classList.add('preview-empty')
+  }
+})
+
+refreshConsoleSnippet()
+
+async function uploadSelectedFile() {
+  if (!selectedFile) {
+    window.alert('Please select an image, video, or audio file first.')
+    return
+  }
+
+  updateProgress('upload-progress-label', 'upload-progress-bar', 0)
+  updateProgress('download-progress-label', 'download-progress-bar', 0)
+  document.getElementById('alice-blob-status').textContent = 'pending'
+  document.getElementById('bob-blob-status').textContent = 'pending'
+  document.getElementById('relay-blob-status').textContent = 'storing'
+  document.getElementById('blob-name-value').textContent = selectedFile.name
+
+  const blobBuffer = await selectedFile.arrayBuffer()
+  const blobHash   = await KEY.sha256url(blobBuffer)
+  document.getElementById('blob-hash-value').textContent = blobHash
+
+  // Bob subscribes to Alice's blob space so blob.meta QuBits are synced
+  await bob.sync.subscribe(`~${alice.pub}/blob/**`, { snapshot: true, live: true })
+
+  // Track Alice's blob status reactively
+  let aliceOffBlob = alice.db.blobs.on(blobHash, (entry) => {
+    const status = entry?.status ?? 'unknown'
+    document.getElementById('alice-blob-status').textContent = status
+    if (status === 'ready') updateProgress('upload-progress-label', 'upload-progress-bar', 100)
+  })
+
+  // Track Bob's blob status reactively — resolves when ready
+  const bobBlobReady = new Promise((resolve) => {
+    let bobOffBlob = bob.db.blobs.on(blobHash, (entry) => {
+      const status = entry?.status ?? 'unknown'
+      document.getElementById('bob-blob-status').textContent = status
+      if (status === 'pending') updateProgress('download-progress-label', 'download-progress-bar', 30)
+      if (status === 'ready') {
+        updateProgress('download-progress-label', 'download-progress-bar', 100)
+        bobOffBlob?.()
+        resolve(entry)
+      }
+    })
+  })
+
+  writeLog(`Alice stores "${selectedFile.name}" locally and schedules relay upload…`, 'info')
+  await alice.db.blobs.put(blobHash, blobBuffer, {
+    mime: selectedFile.type,
+    name: selectedFile.name,
+  })
+  updateProgress('upload-progress-label', 'upload-progress-bar', 50)
+  writeLog('Blob stored locally. Upload to relay queued…', 'info')
+
+  // Check relay periodically (relay upload is async queue task)
+  const relayCheckInterval = setInterval(async () => {
+    const has = relay.hasBlob(blobHash)
+    if (has) {
+      clearInterval(relayCheckInterval)
+      document.getElementById('relay-blob-status').textContent = 'ready'
+      updateProgress('upload-progress-label', 'upload-progress-bar', 100)
+      writeLog('Relay has the blob. Waiting for Bob to download…', 'info')
+    }
+  }, 100)
+
+  // Wait for Bob to get the blob (reactive — no polling needed after blob.ready arrives)
+  const TIMEOUT_MS = 8_000
+  const blobEntry = await Promise.race([
+    bobBlobReady,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Blob download timed out after 8s')), TIMEOUT_MS)),
+  ]).catch((err) => { writeLog(err.message, 'warning'); return null })
+
+  clearInterval(relayCheckInterval)
+  aliceOffBlob?.()
+
+  if (!blobEntry?.status === 'ready' && !relay.hasBlob(blobHash)) {
+    writeLog('Blob flow incomplete — check the console for details.', 'warning')
+    return
+  }
+
+  // Show Bob's preview from his local blob buffer
+  const bobBuffer = await bob.db._internal.readBlobBuffer(blobHash)
+  if (bobBuffer) {
+    revokeObjectUrl(bobObjectUrl)
+    const bobBlob = new Blob([bobBuffer], { type: selectedFile.type || 'application/octet-stream' })
+    bobObjectUrl = URL.createObjectURL(bobBlob)
+    renderPreview('bob-preview-host', {
+      objectUrl: bobObjectUrl,
+      mimeType: selectedFile.type,
+      fileName: selectedFile.name,
+    })
+    writeLog(`✓ Blob flow complete for "${selectedFile.name}". Bob has a local copy.`, 'success')
+  } else {
+    // Bob may have received it via blob status but buffer isn't in IDB yet — show from relay
+    const relayResult = await relay.downloadBlob({ hash: blobHash })
+    if (relayResult?.buffer) {
+      revokeObjectUrl(bobObjectUrl)
+      const relayBlob = new Blob([relayResult.buffer], { type: selectedFile.type || 'application/octet-stream' })
+      bobObjectUrl = URL.createObjectURL(relayBlob)
+      renderPreview('bob-preview-host', {
+        objectUrl: bobObjectUrl,
+        mimeType: selectedFile.type,
+        fileName: selectedFile.name,
+      })
+      writeLog(`✓ Blob available at relay — shown via relay copy for "${selectedFile.name}".`, 'success')
+    }
+  }
+}
+
+document.getElementById('run-blob-flow-button').addEventListener('click', uploadSelectedFile)
+</script>
+</body>
+</html>
