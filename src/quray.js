@@ -298,8 +298,7 @@ const init = async (options = {}) => {
 
   if (binding) {
     registerBindingComponents()
-    // Pass the identity so QuBinding can resolve '~/' shorthands to '~{pub64}/'
-    bindingApi = QuBinding(db, { getCurrentUserPublicKey: () => identity.pub })
+    bindingApi = QuBinding(db)
     bindingApi.init()
   }
   if (ui) {
