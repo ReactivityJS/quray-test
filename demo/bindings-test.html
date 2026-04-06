@@ -26,10 +26,14 @@
       <p>Willkommen, <strong><span qu-key="~/alias"></span></strong>.</p>
       <p>Ungelesene Nachrichten: <strong><span qu-key="conf/app/unread" qu-format="count"></span></strong></p>
       <p>App-Titel: <em><span qu-key="conf/app/title"></span></em></p>
+      <p>Browser-Tab-Titel: <em><span id="tab-title-display" style="color:var(--primary)">—</span></em></p>
       <p><span class="small-text">Hover:</span>
          <span qu-key="conf/app/title" qu-bind="attr:title">reaktiver Tooltip</span></p>
     </div>
-    <pre style="margin-top:10px"><code>&lt;span qu-key="~/alias"&gt;&lt;/span&gt;
+    <pre style="margin-top:10px"><code>&lt;!-- HTML &lt;title&gt; als qu-key Binding (Tab-Titel) --&gt;
+&lt;title qu-key="conf/app/title" qu-placeholder="App"&gt;App&lt;/title&gt;
+
+&lt;span qu-key="~/alias"&gt;&lt;/span&gt;
 &lt;span qu-key="conf/app/unread" qu-format="count"&gt;&lt;/span&gt;</code></pre>
   </article>
 
@@ -122,10 +126,15 @@ t.done('Seed')
 log('QuRay bereit. Ändere die Eingabefelder — die Bindings reagieren sofort.', 'success')
 
 // ── Page-title reaktiv via db.on() ────────────────────────────────────────────
+// The <title qu-key="conf/app/title"> in <head> is also bound via QuBinding —
+// this listener syncs additional UI elements for the demo.
 qr.db.on('conf/app/title', (q) => {
   const title = q?.data ?? ''
   document.title = title
-  document.getElementById('tab-title-mirror').textContent = title
+  const mirror = document.getElementById('tab-title-mirror')
+  if (mirror) mirror.textContent = title
+  const display = document.getElementById('tab-title-display')
+  if (display) display.textContent = title || '—'
 })
 
 // ── Dev-Console Snippets ──────────────────────────────────────────────────────
