@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Browser Tests</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+  :root {
+    --pass: #42d392; --fail: #f56565; --skip: #a0aec0;
+    --bg: #0f1117; --surface: #1a1d27; --border: #2d3149;
+    --text: #e2e8f0; --muted: #718096; --mono: 'SF Mono', 'Fira Code', monospace;
+    --primary: #646cff;
+  }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; padding: 0 }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 16px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap }
+  header h1 { font-size: 18px; font-weight: 600 }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 600 }
+  .badge-pass { background: rgba(66,211,146,.15); color: var(--pass) }
+  .badge-fail { background: rgba(245,101,101,.15); color: var(--fail) }
+  .badge-run  { background: rgba(100,108,255,.15); color: var(--primary) }
+
+  #summary { padding: 12px 24px; font-size: 13px; color: var(--muted);
+    border-bottom: 1px solid var(--border); display: flex; gap: 20px; align-items: center }
+  #progress-bar { height: 3px; background: var(--border); position: relative }
+  #progress-fill { height: 3px; background: var(--pass); width: 0; transition: width .2s }
+  #progress-fill.has-fail { background: var(--fail) }
+
+  main { padding: 16px 24px; max-width: 1000px }
+
+  .suite { margin-bottom: 24px }
+  .suite-header { font-size: 15px; font-weight: 600; padding: 8px 0;
+    border-bottom: 1px solid var(--border); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px }
+  .suite-desc { font-size: 12px; color: var(--muted); font-weight: 400 }
+
+  .test-row { display: flex; align-items: baseline; gap: 10px;
+    padding: 5px 6px; border-radius: 4px; font-size: 13px }
+  .test-row:hover { background: rgba(255,255,255,.03) }
+  .test-icon { width: 16px; text-align: center; font-size: 12px; flex-shrink: 0 }
+  .test-name { flex: 1 }
+  .test-duration { font-size: 11px; color: var(--muted); font-family: var(--mono) }
+  .test-error { margin: 2px 0 6px 26px; font-size: 11px; color: var(--fail);
+    font-family: var(--mono); padding: 6px 10px; background: rgba(245,101,101,.08);
+    border-left: 2px solid var(--fail); border-radius: 0 3px 3px 0; white-space: pre-wrap }
+
+  .icon-pass  { color: var(--pass) }
+  .icon-fail  { color: var(--fail) }
+  .icon-run   { color: var(--primary); animation: spin .8s linear infinite }
+  .icon-skip  { color: var(--skip) }
+  @keyframes spin { to { transform: rotate(360deg) } }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<header>
+  <h1>QuRay Browser Tests</h1>
+  <span id="badge-pass" class="badge badge-pass" style="display:none">0 passed</span>
+  <span id="badge-fail" class="badge badge-fail" style="display:none">0 failed</span>
+  <span id="badge-run"  class="badge badge-run">running…</span>
+</header>
+
+<div id="summary">Loading suites…</div>
+
+<main id="main"></main>
+
+<script type="module">
+// ── Test runner framework ────────────────────────────────────────────────────
+
+let totalTests   = 0
+let passedTests  = 0
+let failedTests  = 0
+let _uniqueSeq   = 0
+
+function createUniqueName(prefix = 'quray') {
+  return `${prefix}-${Date.now()}-${++_uniqueSeq}`
+}
+
+function waitFor(expectFn, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs
+    const tick = async () => {
+      try { await expectFn(); resolve() }
+      catch (err) {
+        if (Date.now() >= deadline) reject(err)
+        else setTimeout(tick, 30)
+      }
+    }
+    tick()
+  })
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function makeAssertions() {
+  return {
+    assert(condition, message = 'assertion failed') {
+      if (!condition) throw new Error(message)
+    },
+    assertEqual(actual, expected, message = 'assertEqual') {
+      if (actual !== expected)
+        throw new Error(`${message}: got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`)
+    },
+    assertDeepEqual(actual, expected, message = 'assertDeepEqual') {
+      const a = JSON.stringify(actual)
+      const b = JSON.stringify(expected)
+      if (a !== b) throw new Error(`${message}:\n  got      ${a}\n  expected ${b}`)
+    },
+    assertNull(value, message = 'assertNull') {
+      if (value !== null) throw new Error(`${message}: expected null, got ${JSON.stringify(value)}`)
+    },
+    assertMatch(value, regex, message = 'assertMatch') {
+      if (!regex.test(value)) throw new Error(`${message}: ${JSON.stringify(value)} does not match ${regex}`)
+    },
+    waitFor,
+    sleep,
+    createUniqueName,
+  }
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+const mainEl    = document.getElementById('main')
+const summaryEl = document.getElementById('summary')
+const progressEl = document.getElementById('progress-fill')
+const badgePass = document.getElementById('badge-pass')
+const badgeFail = document.getElementById('badge-fail')
+const badgeRun  = document.getElementById('badge-run')
+
+function updateProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+  progressEl.style.width = `${pct}%`
+  if (failedTests > 0) progressEl.classList.add('has-fail')
+}
+
+function updateBadges() {
+  if (passedTests > 0) {
+    badgePass.textContent = `${passedTests} passed`
+    badgePass.style.display = ''
+  }
+  if (failedTests > 0) {
+    badgeFail.textContent = `${failedTests} failed`
+    badgeFail.style.display = ''
+  }
+}
+
+function buildSuiteEl(suiteName, suiteDesc) {
+  const suiteEl = document.createElement('div')
+  suiteEl.className = 'suite'
+  suiteEl.innerHTML = `
+    <div class="suite-header">
+      <span>${suiteName}</span>
+      <span class="suite-desc">${suiteDesc}</span>
+    </div>`
+  mainEl.appendChild(suiteEl)
+  return suiteEl
+}
+
+function addTestRow(suiteEl, name) {
+  const row = document.createElement('div')
+  row.className = 'test-row'
+  row.innerHTML = `<span class="test-icon icon-run">⟳</span>
+    <span class="test-name">${name}</span>
+    <span class="test-duration"></span>`
+  suiteEl.appendChild(row)
+  return row
+}
+
+function markTestDone(rowEl, passed, durationMs, errorMessage = null) {
+  rowEl.querySelector('.test-icon').className = `test-icon ${passed ? 'icon-pass' : 'icon-fail'}`
+  rowEl.querySelector('.test-icon').textContent = passed ? '✓' : '✗'
+  rowEl.querySelector('.test-duration').textContent = `${durationMs}ms`
+  if (!passed && errorMessage) {
+    const errEl = document.createElement('div')
+    errEl.className = 'test-error'
+    errEl.textContent = errorMessage
+    rowEl.insertAdjacentElement('afterend', errEl)
+  }
+}
+
+// ── registerSuite ─────────────────────────────────────────────────────────────
+
+const _suites = []
+
+function registerSuite(name, description, configureFn) {
+  const tests = []
+  configureFn({ test: (testName, runFn) => tests.push({ testName, runFn }) })
+  _suites.push({ name, description, tests })
+  totalTests += tests.length
+}
+
+// ── Run all suites ────────────────────────────────────────────────────────────
+
+async function runAll() {
+  summaryEl.textContent = `Running ${totalTests} tests across ${_suites.length} suites…`
+
+  let done = 0
+  for (const suite of _suites) {
+    const suiteEl = buildSuiteEl(suite.name, suite.description)
+
+    for (const { testName, runFn } of suite.tests) {
+      const rowEl = addTestRow(suiteEl, testName)
+      const t0 = performance.now()
+      let passed = false
+      let errMsg = null
+      try {
+        await runFn(makeAssertions())
+        passed = true
+        passedTests++
+      } catch (err) {
+        errMsg = err?.message ?? String(err)
+        failedTests++
+      }
+      const duration = Math.round(performance.now() - t0)
+      markTestDone(rowEl, passed, duration, errMsg)
+      done++
+      updateProgress(done, totalTests)
+      updateBadges()
+    }
+  }
+
+  badgeRun.style.display = 'none'
+  summaryEl.textContent =
+    `${totalTests} tests — ${passedTests} passed, ${failedTests} failed`
+
+  if (failedTests === 0) {
+    summaryEl.style.color = 'var(--pass)'
+    summaryEl.textContent += ' ✓'
+  } else {
+    summaryEl.style.color = 'var(--fail)'
+  }
+}
+
+// ── Import and register all suites ───────────────────────────────────────────
+
+import { registerQuBitBrowserSuite }         from './browser/suites/qubit.browser.test.js'
+import { registerQuDbBrowserSuite }           from './browser/suites/db.browser.test.js'
+import { registerQuDbFlowBrowserSuite }       from './browser/suites/db-flow.browser.test.js'
+import { registerIndexedDbBrowserSuite }      from './browser/suites/idb.browser.test.js'
+import { registerIdentityBrowserSuite }       from './browser/suites/identity.browser.test.js'
+import { registerAccessControlBrowserSuite }  from './browser/suites/access-control.browser.test.js'
+import { registerVerifyBrowserSuite }         from './browser/suites/verify.browser.test.js'
+import { registerDeliveryStatesBrowserSuite } from './browser/suites/delivery-states.browser.test.js'
+import { registerBlobStepsBrowserSuite }      from './browser/suites/blob-steps.browser.test.js'
+import { registerNativeBindingBrowserSuite }  from './browser/suites/native-binding.browser.test.js'
+import { registerTemplateBrowserSuite }       from './browser/suites/template.browser.test.js'
+import { registerIntegrationBrowserSuite }    from './browser/suites/integration.browser.test.js'
+
+registerQuBitBrowserSuite(registerSuite)
+registerQuDbBrowserSuite(registerSuite)
+registerQuDbFlowBrowserSuite(registerSuite)
+registerIndexedDbBrowserSuite(registerSuite)
+registerIdentityBrowserSuite(registerSuite)
+registerAccessControlBrowserSuite(registerSuite)
+registerVerifyBrowserSuite(registerSuite)
+registerDeliveryStatesBrowserSuite(registerSuite)
+registerBlobStepsBrowserSuite(registerSuite)
+registerNativeBindingBrowserSuite(registerSuite)
+registerTemplateBrowserSuite(registerSuite)
+registerIntegrationBrowserSuite(registerSuite)
+
+runAll()
+</script>
+</body>
+</html>
