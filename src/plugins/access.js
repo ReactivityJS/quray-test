@@ -6,10 +6,12 @@ function parseActorPublicKey(actorPublicKey) {
 }
 
 function parseKeyOwnerPublicKey(keyString) {
+  // Normalise through pub64 so comparisons with actorPublicKey (also pub64-normalised)
+  // are reliable regardless of whether the key was built from raw base64 or base64url.
   const userMatch = /^~([^/]+)\//u.exec(keyString)
-  if (userMatch) return userMatch[1]
+  if (userMatch) return pub64(userMatch[1])
   const inboxMatch = /^>([^/]+)\//u.exec(keyString)
-  if (inboxMatch) return inboxMatch[1]
+  if (inboxMatch) return pub64(inboxMatch[1])
   return null
 }
 
@@ -39,11 +41,16 @@ async function canActorWriteQuBit(database, qubit) {
   const aclValue = aclQuBit?.data ?? null
 
   if (!aclValue) {
+    // No ACL exists for this space yet.
+    // The ~acl key itself can only be written by whoever claims ownership (data.owner).
     if (keyString === KEY.space(spaceId).acl) {
       return aclValue == null && actorPublicKey && pub64(qubit?.data?.owner ?? '') === actorPublicKey
     }
+    // ~meta is writable by any authenticated actor (no ACL required).
     if (keyString === KEY.space(spaceId).meta) return Boolean(actorPublicKey)
-    return false
+    // All other keys in an ACL-less space are open — any authenticated actor may write.
+    // The relay enforces its own ACL on ingest; this is a client-side pre-flight only.
+    return Boolean(actorPublicKey)
   }
 
   if (aclValue.owner && pub64(aclValue.owner) === actorPublicKey) return true
