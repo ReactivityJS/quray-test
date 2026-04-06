@@ -22,6 +22,7 @@
 
 import { PIPELINE_PRIORITY } from '../core/events.js'
 import { NO_STORE_TYPES, cleanQuBitForTransport } from '../core/qubit.js'
+import { isLocalOnly } from '../core/mounts.js'
 
 
 // Standard Last-Write-Wins: eingehender QuBit gewinnt bei höherem oder gleichem ts
@@ -120,8 +121,9 @@ const StoreOutPlugin = () => (db) => {
     await db._internal.write(qubit.key, qubitToStore, 'local')
 
     // Track delivery state: QuBit is now stored locally.
-    // Skip conf/ keys: delivery states ARE stored under conf/ and must not track themselves.
-    if (!qubit.key.startsWith('conf/')) {
+    // Skip local-only mounts (conf/, sys/, blobs/): they are never synced so
+    // delivery tracking is meaningless, and conf/ keys store delivery state itself.
+    if (!isLocalOnly(qubit.key)) {
       db._internal.delivery?.set(qubit.key, 'local').catch(() => {})
     }
 

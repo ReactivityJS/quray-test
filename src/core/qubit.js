@@ -169,7 +169,7 @@ const isValidQuBit = (q) => {
   for (const f of REQUIRED_QUBIT_FIELDS) {
     if (q[f] == null) { /*DEBUG*/ console.debug('[QuRay:qubit] Pflichtfeld fehlt:', f); return false }
   }
-  if (typeof q.ts !== 'number' || q.ts <= 0) return false
+  if (typeof q.ts !== 'number' || q.ts <= 0 || !isFinite(q.ts)) return false
   return true
 }
 
