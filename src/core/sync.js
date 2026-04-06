@@ -995,7 +995,7 @@ const QuSync = ({ db, net, queue, identity, config = {} }) => {
         periodicSync: config.periodicSync ?? false,
         periodicInterval: config.periodicInterval ?? 15 * 60 * 1000,
       })
-    ).catch(() => {})
+    ).catch(e => { /*DEBUG*/ console.warn('[QuRay:Sync] SW config failed:', e.message) })
   }
 
 
