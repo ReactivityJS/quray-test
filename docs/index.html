@@ -1,78 +1,404 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuRay documentation</title>
-<link rel="stylesheet" href="/docs/assets/site.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuRay Documentation</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f6f8fa;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --accent: #4f46e5;
+      --link: #0969da;
+      --code-bg: #f6f8fa;
+      --sidebar-w: 260px;
+      --header-h: 56px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --text-muted: #8b949e;
+        --accent: #818cf8;
+        --link: #58a6ff;
+        --code-bg: #161b22;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    /* ── Header ── */
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      gap: 1rem;
+      z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    header .subtitle { font-size: .85rem; opacity: .8; }
+    header .badge {
+      margin-left: auto;
+      background: rgba(255,255,255,.2);
+      padding: .2rem .65rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      padding-top: var(--header-h);
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    nav#sidebar {
+      width: var(--sidebar-w);
+      position: fixed;
+      top: var(--header-h);
+      bottom: 0; left: 0;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1rem 0 2rem;
+    }
+    .search-wrap { padding: .5rem 1rem .75rem; }
+    .search-wrap input {
+      width: 100%;
+      padding: .4rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: .85rem;
+    }
+    .search-wrap input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .nav-section {
+      padding: .9rem 1.1rem .2rem;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+    nav#sidebar a {
+      display: block;
+      padding: .35rem 1.25rem;
+      color: var(--text);
+      text-decoration: none;
+      font-size: .875rem;
+      border-left: 3px solid transparent;
+      transition: background .12s, border-color .12s;
+    }
+    nav#sidebar a:hover { background: rgba(127,127,127,.08); }
+    nav#sidebar a.active {
+      border-left-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+      background: rgba(79,70,229,.07);
+    }
+
+    /* ── Main content ── */
+    main#content {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      max-width: 900px;
+      padding: 2.5rem 3rem 6rem;
+    }
+    .doc-section { display: none; }
+    .doc-section.active { display: block; }
+
+    /* ── Typography ── */
+    .doc-section h1 {
+      font-size: 2rem; font-weight: 800;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: .75rem; margin-bottom: 1.5rem;
+    }
+    .doc-section h2 {
+      font-size: 1.4rem; font-weight: 700;
+      margin: 2.5rem 0 .75rem;
+      padding-bottom: .35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-section h3 {
+      font-size: 1.1rem; font-weight: 600;
+      margin: 1.75rem 0 .5rem;
+      color: var(--accent);
+    }
+    .doc-section h4 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .4rem; }
+    .doc-section p  { margin: .75rem 0; }
+    .doc-section ul, .doc-section ol { margin: .75rem 0 .75rem 1.5rem; }
+    .doc-section li { margin: .25rem 0; }
+    .doc-section a  { color: var(--link); text-decoration: none; }
+    .doc-section a:hover { text-decoration: underline; }
+    .doc-section hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    /* ── Code ── */
+    .doc-section code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: .875em;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .1em .35em;
+    }
+    .doc-section pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    .doc-section pre code {
+      background: none; border: none; padding: 0; font-size: .85rem;
+    }
+
+    /* ── Tables ── */
+    .doc-section table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+    .doc-section th {
+      background: var(--surface); text-align: left;
+      padding: .6rem 1rem; border: 1px solid var(--border); font-weight: 600;
+    }
+    .doc-section td { padding: .5rem 1rem; border: 1px solid var(--border); }
+    .doc-section tr:nth-child(even) td { background: var(--surface); }
+
+    /* ── Blockquote ── */
+    .doc-section blockquote {
+      border-left: 4px solid var(--accent);
+      background: rgba(79,70,229,.05);
+      padding: .75rem 1.25rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .doc-section blockquote p { margin: 0; color: var(--text-muted); }
+
+    /* ── Loading ── */
+    #loading {
+      display: flex; align-items: center; justify-content: center;
+      height: 60vh; color: var(--text-muted);
+    }
+    #loading::after {
+      content: ''; width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-left: 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      nav#sidebar { display: none; }
+      main#content { margin-left: 0; padding: 1.5rem 1.25rem 4rem; }
+    }
+  </style>
 </head>
 <body>
+
+<header>
+  <h1>&#9889; QuRay</h1>
+  <span class="subtitle">Offline-first reactive P2P database</span>
+  <span class="badge">Developer Guide</span>
+</header>
+
 <div class="layout">
-  <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">⬡</div><div><div class="brand-title">QuRay Docs</div><div class="brand-subtitle">Module boundaries, API reference, and live demos</div></div></div>
-    <nav class="sidebar-nav">
-      <h2>Overview</h2>
-      <a data-nav-link href="/docs/index.html">Documentation home</a>
-      <a data-nav-link href="/docs/examples/index.html">Examples and demos</a>
-      <h2>API</h2>
-      <a data-nav-link href="/docs/api/index.html">API overview</a>
-      <a data-nav-link href="/docs/api/db.html">QuDB</a>
-      <a data-nav-link href="/docs/api/net.html">QuNet</a>
-      <a data-nav-link href="/docs/api/sync.html">QuSync</a>
-      <a data-nav-link href="/docs/api/ui-binding.html">UI binding</a>
-      <a data-nav-link href="/docs/api/blobs.html">Blobs and delivery</a>
-      <a data-nav-link href="/docs/api/relay.html">Relay and replicas</a>
-      <h2>Live pages</h2>
-      <a data-nav-link href="/demo/index.html">Demo gallery</a>
-      <a data-nav-link href="/demo/bindings-live.html">Bindings live</a>
-      <a data-nav-link href="/demo/blobs-live.html">Blob flow live</a>
-      <a data-nav-link href="/demo/feature-lab.html">Feature lab</a>
-      <a data-nav-link href="/tests/interactive/index.html">Interactive manual test</a>
-    </nav>
-  </aside>
-  <main class="content">
-    <section class="hero">
-      <h1>QuRay documentation hub</h1>
-      <p>QuRay is a modular reactive framework for signed data, relay-backed replication, blob transport, and native or component-based UI bindings. This HTML site complements the Markdown docs with browser navigation, embedded live demos, and manual verification pages.</p>
-      <div class="hero-actions">
-        <a class="button button--primary" href="/docs/api/index.html">Open the HTML API reference</a>
-        <a class="button" href="/demo/feature-lab.html">Open the interactive feature lab</a>
-        <a class="button" href="/tests/interactive/index.html">Open the manual verification page</a>
-      </div>
-    </section>
-    <section class="section">
-      <h2>What to use for what</h2>
-      <div class="card-grid">
-        <article class="card"><h3>Markdown documents</h3><p>Use the Markdown files for architecture rationale, source conventions, long-form notes, and test strategy. They remain the source of truth for repo editing.</p></article>
-        <article class="card"><h3>HTML API docs</h3><p>Use the HTML docs to browse public API surfaces, event metadata, and module-specific examples inside a browser without opening source files.</p></article>
-        <article class="card"><h3>Interactive demos</h3><p>Use the demos to see bindings, relay flows, ACL denial, tombstones, and blob progress in action. The demos are lightweight manual inspection tools, not replacements for automated tests.</p></article>
-      </div>
-    </section>
-    <section class="section">
-      <h2>Recommended reading order</h2>
-      <table class="table"><thead><tr><th>Step</th><th>Why start here</th><th>Primary file</th></tr></thead><tbody>
-        <tr><td>1</td><td>Understand the framework boundaries and intended stable API surface.</td><td><a href="/docs/FRAMEWORK-CORE.md">FRAMEWORK-CORE.md</a></td></tr>
-        <tr><td>2</td><td>See the modular API layout and where QuDB, QuNet, QuSync, relay, and UI binding belong.</td><td><a href="/docs/MODULAR-API.md">MODULAR-API.md</a></td></tr>
-        <tr><td>3</td><td>Jump into the browser-friendly API pages for exact methods and event semantics.</td><td><a href="/docs/api/index.html">HTML API reference</a></td></tr>
-        <tr><td>4</td><td>Open the binding and blob demos to connect the API to visible behaviour.</td><td><a href="/docs/examples/index.html">Examples and demos</a></td></tr>
-      </tbody></table>
-    </section>
-    <section class="section">
-      <h2>Embedded live previews</h2>
-      <p>The pages below use the actual source modules from <code>src/</code>. They are useful for verifying the inline binding recommendation with <code>&lt;span&gt;</code> and the full two-peer relay flow.</p>
-      <div class="embed-grid">
-        <article class="embed-card"><header><h3>Bindings live</h3><p>Inline text, two-way inputs, <code>&lt;title&gt;</code> binding, and template-based <code>qu-bind</code> and <code>qu-list</code>.</p></header><iframe src="/demo/bindings-live.html" title="Bindings live demo"></iframe></article>
-        <article class="embed-card"><header><h3>Feature lab</h3><p>Peer 1 → relay → peer 2, ACL allow/deny, tombstones, blob upload/download progress, and readable logs.</p></header><iframe src="/demo/feature-lab.html" title="QuRay feature lab"></iframe></article>
-      </div>
-    </section>
-    <section class="section">
-      <h2>Operational guidance</h2>
-      <div class="notice"><strong>Recommended inline HTML element:</strong> use <code>&lt;span&gt;</code> for small inline values such as alias, unread count, app title fragments, or status words inside a sentence. It preserves line height and does not introduce block-level spacing.</div>
-      <pre><code>&lt;p&gt;Welcome back, &lt;span qu-key="~/alias"&gt;&lt;/span&gt;. You have &lt;span qu-key="conf/app/unread" qu-format="count"&gt;&lt;/span&gt; unread items.&lt;/p&gt;</code></pre>
-    </section>
-    <div class="footer"><p>This HTML documentation complements the Markdown sources in <code>docs/</code>. The Markdown files remain the primary editable source for architecture notes and longer explanations.</p></div>
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+    <div class="search-wrap">
+      <input type="search" id="search" placeholder="Search docs…" autocomplete="off">
+    </div>
+
+    <div class="nav-section">Getting Started</div>
+    <a href="#overview" class="nav-link active">Overview</a>
+
+    <div class="nav-section">Foundation</div>
+    <a href="#concepts" class="nav-link">01 &middot; Core Concepts</a>
+    <a href="#users"    class="nav-link">02 &middot; Users &amp; Identity</a>
+    <a href="#spaces"   class="nav-link">03 &middot; Spaces</a>
+    <a href="#acl"      class="nav-link">04 &middot; Access Control (ACL)</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="#api"      class="nav-link">05 &middot; API Reference</a>
+    <a href="#ui"       class="nav-link">06 &middot; UI Components</a>
+
+    <div class="nav-section">Examples</div>
+    <a href="#examples" class="nav-link">07 &middot; Complete Examples</a>
+
+    <div class="nav-section">Other Docs</div>
+    <a href="guide/README.md"    class="nav-link" target="_blank">Guide Index &#8599;</a>
+    <a href="PATTERNS.md"        class="nav-link" target="_blank">Patterns &#8599;</a>
+    <a href="PLUGIN-MATRIX.md"   class="nav-link" target="_blank">Plugin Matrix &#8599;</a>
+    <a href="QU-ELEMENTS.md"     class="nav-link" target="_blank">QU-Elements &#8599;</a>
+    <a href="ARCHITECTURE.md"    class="nav-link" target="_blank">Architecture &#8599;</a>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <main id="content">
+    <div id="loading">Loading documentation</div>
   </main>
+
 </div>
-<script type="module" src="/docs/assets/site.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+
+<script>
+const PAGES = [
+  { id: 'overview', title: 'Overview',                  url: 'guide/README.md' },
+  { id: 'concepts', title: '01 · Core Concepts',        url: 'guide/01-concepts.md' },
+  { id: 'users',    title: '02 · Users & Identity',     url: 'guide/02-users.md' },
+  { id: 'spaces',   title: '03 · Spaces',               url: 'guide/03-spaces.md' },
+  { id: 'acl',      title: '04 · Access Control (ACL)', url: 'guide/04-acl.md' },
+  { id: 'api',      title: '05 · API Reference',        url: 'guide/05-api-reference.md' },
+  { id: 'ui',       title: '06 · UI Components',        url: 'guide/06-ui.md' },
+  { id: 'examples', title: '07 · Complete Examples',    url: 'guide/07-examples.md' },
+]
+
+const cache = {}
+
+marked.setOptions({ gfm: true, breaks: false })
+
+// Resolve relative MD links to hash-based navigation
+function preprocessMd(md) {
+  return md
+    .replace(/\]\(\.\/(\d\d-[^)]+\.md)([^)]*)\)/g, (_, file, rest) => {
+      const p = PAGES.find(p => p.url.endsWith(file))
+      return p ? `](#${p.id}${rest})` : `](${file}${rest})`
+    })
+    .replace(/\]\(\.\/README\.md\)/g, '](#overview)')
+}
+
+async function loadPage(id) {
+  const page = PAGES.find(p => p.id === id)
+  if (!page) return
+
+  // Update active nav link
+  document.querySelectorAll('.nav-link[href^="#"]').forEach(a =>
+    a.classList.toggle('active', a.getAttribute('href') === '#' + id)
+  )
+
+  // Reuse already-rendered section
+  let section = document.getElementById('sec-' + id)
+  if (section) {
+    document.querySelectorAll('.doc-section').forEach(s => s.classList.remove('active'))
+    section.classList.add('active')
+    window.scrollTo(0, 0)
+    return
+  }
+
+  // Fetch markdown
+  if (!cache[id]) {
+    try {
+      const res = await fetch(page.url)
+      if (!res.ok) throw new Error(res.status)
+      cache[id] = await res.text()
+    } catch (e) {
+      cache[id] = `# ${page.title}\n\n`
+        + `> **Cannot load this page.**  \n`
+        + `> Open this file via an HTTP server (e.g. \`node relay.js\`), not directly from the filesystem.\n\n`
+        + `You can also read the [source Markdown](${page.url}) directly.`
+    }
+  }
+
+  // Build section element
+  section = document.createElement('div')
+  section.id        = 'sec-' + id
+  section.className = 'doc-section'
+  section.innerHTML = marked.parse(preprocessMd(cache[id]))
+
+  // Remove loading indicator on first render
+  const loading = document.getElementById('loading')
+  if (loading) loading.remove()
+
+  // Hide all other sections
+  document.querySelectorAll('.doc-section').forEach(s => s.classList.remove('active'))
+  section.classList.add('active')
+  document.getElementById('content').appendChild(section)
+
+  // Syntax highlight all code blocks
+  section.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b))
+
+  // Intercept internal anchor links
+  section.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = a.getAttribute('href').slice(1)
+      if (PAGES.find(p => p.id === target)) {
+        e.preventDefault()
+        navigate(target)
+      }
+    })
+  })
+
+  window.scrollTo(0, 0)
+}
+
+function navigate(id) {
+  history.pushState({ id }, '', '#' + id)
+  loadPage(id)
+}
+
+// Wire up sidebar links
+document.querySelectorAll('.nav-link[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault()
+    navigate(a.getAttribute('href').slice(1))
+  })
+})
+
+// Browser back/forward
+window.addEventListener('popstate', e => {
+  loadPage(e.state?.id ?? location.hash.slice(1) ?? 'overview')
+})
+
+// Search: prefetch all pages and filter nav
+const searchInput = document.getElementById('search')
+searchInput.addEventListener('input', async () => {
+  const term = searchInput.value.trim().toLowerCase()
+  if (!term) {
+    document.querySelectorAll('.nav-link').forEach(a => (a.style.display = ''))
+    return
+  }
+  // Pre-fetch all for search
+  await Promise.all(PAGES.map(async p => {
+    if (!cache[p.id]) {
+      try { const r = await fetch(p.url); if (r.ok) cache[p.id] = await r.text() } catch (_) {}
+    }
+  }))
+  document.querySelectorAll('.nav-link[href^="#"]').forEach(a => {
+    const id  = a.getAttribute('href').slice(1)
+    const pg  = PAGES.find(p => p.id === id)
+    const hit = pg?.title.toLowerCase().includes(term) || (cache[id] ?? '').toLowerCase().includes(term)
+    a.style.display = hit ? '' : 'none'
+  })
+})
+
+// Initial page load
+loadPage(location.hash.slice(1) || 'overview')
+</script>
+
 </body>
 </html>
