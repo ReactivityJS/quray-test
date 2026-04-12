@@ -24,6 +24,7 @@ export function RelaySession() {
 // ── Demos navigation ─────────────────────────────────────────────────────────
 export const DEMOS = [
   { href:'/demo/index.html',         label:'🏠' },
+  { href:'/demo/messenger.html',     label:'Messenger' },
   { href:'/demo/blob-test.html',     label:'Blob' },
   { href:'/demo/bindings-test.html', label:'Bindings' },
   { href:'/demo/todo.html',          label:'ToDo' },

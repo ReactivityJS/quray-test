@@ -1,0 +1,345 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   QuRay Messenger — messenger.css
+   Layout, chat bubbles, sidebar, composer, call overlay.
+   Extends the demo-shell.css design token vocabulary.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Design tokens (defaults — override in :root from app) ───────────────── */
+:root {
+  --qm-bg:            var(--background,   #0f1720);
+  --qm-surface:       var(--surface,      #18212b);
+  --qm-surface-alt:   var(--surface-alt,  #233142);
+  --qm-border:        var(--border,       #334155);
+  --qm-text:          var(--text,         #f1f5f9);
+  --qm-muted:         var(--muted,        #9aa7b5);
+  --qm-primary:       var(--primary,      #67b7ff);
+  --qm-success:       var(--success,      #42d392);
+  --qm-warning:       var(--warning,      #f6c453);
+  --qm-danger:        var(--danger,       #ff7f7f);
+
+  /* Bubble colors */
+  --qm-bubble-mine-bg:     rgba(103, 183, 255, 0.15);
+  --qm-bubble-mine-border: rgba(103, 183, 255, 0.28);
+  --qm-bubble-their-bg:    var(--qm-surface-alt);
+  --qm-bubble-their-border:var(--qm-border);
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+qm-app {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--qm-bg);
+  color: var(--qm-text);
+  font: 14px/1.55 system-ui, sans-serif;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+qm-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  min-width: 220px;
+  max-width: 340px;
+  border-right: 1px solid var(--qm-border);
+  background: var(--qm-surface);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.qm-sidebar-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--qm-border);
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.qm-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.qm-conv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background .12s;
+  position: relative;
+}
+.qm-conv-row:hover  { background: rgba(255,255,255,.04); }
+.qm-conv-row.active { background: rgba(103,183,255,.10); }
+
+.qm-conv-info    { flex: 1; min-width: 0; }
+.qm-conv-name    { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qm-conv-preview { font-size: 12px; color: var(--qm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.qm-conv-meta    { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.qm-conv-ts      { font-size: 10px; color: var(--qm-muted); }
+.qm-unread-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; border-radius: 9px;
+  background: var(--qm-primary); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 0 4px;
+}
+.qm-unread-badge:empty,
+.qm-unread-badge[data-count="0"] { display: none; }
+
+/* ── Chat panel ─────────────────────────────────────────────────────────── */
+qm-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.qm-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--qm-border);
+  background: var(--qm-surface);
+  flex-shrink: 0;
+}
+.qm-chat-header-info { flex: 1; min-width: 0; }
+.qm-chat-header-name { font-size: 15px; font-weight: 600; }
+.qm-chat-header-status { font-size: 12px; color: var(--qm-muted); margin-top: 1px; }
+.qm-chat-header-actions { display: flex; gap: 8px; }
+
+.qm-chat-header-btn {
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 6px; border-radius: 8px;
+  font-size: 18px; line-height: 1; transition: background .12s, color .12s;
+}
+.qm-chat-header-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
+
+/* ── Message list ───────────────────────────────────────────────────────── */
+.qm-msg-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scroll-behavior: smooth;
+}
+
+.qm-msg-list::-webkit-scrollbar { width: 6px; }
+.qm-msg-list::-webkit-scrollbar-track  { background: transparent; }
+.qm-msg-list::-webkit-scrollbar-thumb  { background: var(--qm-border); border-radius: 3px; }
+
+.qm-day-divider {
+  display: flex; align-items: center; gap: 10px; margin: 10px 0;
+  font-size: 11px; color: var(--qm-muted);
+}
+.qm-day-divider::before,
+.qm-day-divider::after { content: ''; flex: 1; height: 1px; background: var(--qm-border); }
+
+.qm-typing-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px; color: var(--qm-muted);
+  font-style: italic;
+}
+.qm-typing-dots {
+  display: inline-flex; gap: 3px;
+}
+.qm-typing-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--qm-muted); display: inline-block;
+  animation: qm-blink 1.2s ease-in-out infinite;
+}
+.qm-typing-dots span:nth-child(2) { animation-delay: .2s; }
+.qm-typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes qm-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
+
+/* ── Composer ───────────────────────────────────────────────────────────── */
+qm-composer {
+  display: block;
+}
+
+.qm-composer-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--qm-border);
+  background: var(--qm-surface);
+}
+
+.qm-composer-input {
+  flex: 1;
+  background: var(--qm-bg);
+  color: var(--qm-text);
+  border: 1px solid var(--qm-border);
+  border-radius: 20px;
+  padding: 9px 14px;
+  font: 14px/1.4 system-ui, sans-serif;
+  resize: none;
+  outline: none;
+  max-height: 140px;
+  overflow-y: auto;
+  transition: border-color .15s;
+}
+.qm-composer-input:focus { border-color: var(--qm-primary); }
+.qm-composer-input::placeholder { color: var(--qm-muted); }
+
+.qm-composer-btn {
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 8px; border-radius: 50%;
+  font-size: 18px; line-height: 1; transition: background .12s, color .12s;
+  flex-shrink: 0;
+}
+.qm-composer-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
+.qm-composer-btn.send {
+  background: rgba(103,183,255,.18); color: var(--qm-primary);
+  border-radius: 50%; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+}
+.qm-composer-btn.send:hover { background: rgba(103,183,255,.30); }
+
+/* Staged file chips above composer */
+.qm-staged-files {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 6px 14px 0;
+}
+.qm-staged-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 8px;
+  background: var(--qm-surface-alt); border: 1px solid var(--qm-border);
+  font-size: 12px; color: var(--qm-muted);
+}
+.qm-staged-chip button {
+  appearance: none; border: none; background: none;
+  color: var(--qm-muted); cursor: pointer; padding: 0; font-size: 13px; line-height: 1;
+}
+.qm-staged-chip button:hover { color: var(--qm-danger); }
+
+/* ── Call overlay ────────────────────────────────────────────────────────── */
+qm-call-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+qm-call-overlay[hidden] { display: none !important; }
+
+.qm-call-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(8px);
+}
+
+.qm-call-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(380px, 94vw);
+  border-radius: 24px;
+  border: 1px solid var(--qm-border);
+  background: var(--qm-surface);
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.qm-call-state-label {
+  font-size: 13px; color: var(--qm-muted); letter-spacing: .06em; text-transform: uppercase;
+}
+.qm-call-peer-name { font-size: 22px; font-weight: 600; }
+.qm-call-duration  { font-size: 14px; color: var(--qm-muted); font-variant-numeric: tabular-nums; }
+.qm-call-video-row {
+  display: flex; gap: 10px; width: 100%; justify-content: center;
+}
+.qm-call-video {
+  width: 120px; height: 90px; border-radius: 12px;
+  background: #000; object-fit: cover; display: none;
+}
+.qm-call-video.active { display: block; }
+.qm-call-video.local-preview {
+  width: 80px; height: 60px; border-radius: 8px; position: absolute; bottom: 96px; right: 16px;
+}
+
+.qm-call-actions { display: flex; gap: 16px; justify-content: center; margin-top: 8px; }
+.qm-call-action-btn {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: none; cursor: pointer; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .12s, opacity .12s;
+}
+.qm-call-action-btn:hover { transform: scale(1.08); }
+.qm-call-action-btn:active { transform: scale(.96); }
+.qm-call-action-btn.accept  { background: rgba(66,211,146,.25); }
+.qm-call-action-btn.decline { background: rgba(255,127,127,.25); }
+.qm-call-action-btn.hangup  { background: rgba(255,127,127,.25); }
+.qm-call-action-btn.mute    { background: rgba(103,183,255,.15); }
+.qm-call-action-btn.camera  { background: rgba(103,183,255,.15); }
+
+/* ringing pulse on avatar */
+.qm-call-avatar-wrap {
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+.qm-call-avatar-wrap.ringing::before {
+  content: ''; position: absolute; inset: -8px; border-radius: 50%;
+  border: 2px solid var(--qm-primary); animation: qm-ring-pulse 1.4s ease-out infinite;
+}
+@keyframes qm-ring-pulse {
+  0%   { transform: scale(1);   opacity: .8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.qm-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--qm-muted);
+}
+.qm-empty-state-icon { font-size: 48px; opacity: .5; }
+.qm-empty-state-text { font-size: 15px; }
+
+/* ── Mobile responsive ──────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  qm-app {
+    position: relative;
+  }
+  qm-sidebar {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    width: 100%;
+    max-width: 100%;
+    transform: translateX(0);
+    transition: transform .2s ease;
+  }
+  qm-sidebar.hidden-mobile {
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+  qm-chat {
+    position: absolute;
+    inset: 0;
+  }
+  .qm-chat-back-btn { display: flex !important; }
+}
+.qm-chat-back-btn {
+  display: none;
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 6px 2px; font-size: 20px; line-height: 1;
+}

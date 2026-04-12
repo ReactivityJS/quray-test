@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuRay Messenger</title>
+<link rel="stylesheet" href="/demo/lib/demo-shell.css">
+<link rel="stylesheet" href="/src/plugins/messenger/ui/messenger.css">
+<style>
+/* Demo layout */
+.messenger-demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: calc(100vh - 180px);
+  min-height: 480px;
+}
+@media(max-width:800px){.messenger-demo-grid{grid-template-columns:1fr;height:auto}}
+
+.peer-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.peer-label {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255,255,255,.03);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.peer-label qu-status { font-size: 10px; }
+qm-app { flex: 1; min-height: 0; }
+
+/* Quick-action bar */
+.qa-bar {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+</style>
+</head>
+<body>
+<header class="demo-header">
+  <div>
+    <h1>💬 Messenger Demo</h1>
+    <p>Alice und Bob chatten reaktiv — Text, Dateien, Emojis, Audio/Video-Calls via WebRTC.</p>
+  </div>
+  <div class="demo-actions">
+    <a class="button-link" href="/demo/index.html">← Index</a>
+    <button class="success"  id="btn-send-text">✉ Text senden</button>
+    <button class="primary"  id="btn-send-file">🖼 Bild senden</button>
+    <button class="warning"  id="btn-call">📞 Anruf starten</button>
+    <button id="btn-reset" class="danger">Reset</button>
+  </div>
+</header>
+
+<div id="init-overlay" class="demo-loading-overlay">
+  <div class="demo-loading-spinner"></div>
+  <div id="init-status">Peers initialisieren…</div>
+</div>
+
+<div class="messenger-demo-grid">
+  <!-- Alice -->
+  <div class="peer-panel" id="panel-alice">
+    <div class="peer-label">
+      👩 Alice
+      <span id="alice-pub" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+      <qu-status id="alice-relay-status" show-label></qu-status>
+    </div>
+    <qm-app id="app-alice"></qm-app>
+  </div>
+
+  <!-- Bob -->
+  <div class="peer-panel" id="panel-bob">
+    <div class="peer-label">
+      👨 Bob
+      <span id="bob-pub" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+      <qu-status id="bob-relay-status" show-label></qu-status>
+    </div>
+    <qm-app id="app-bob"></qm-app>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card" style="margin-top:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:14px">Sync-Log</h2>
+    <div class="metric-grid" style="flex:1;max-width:400px;margin-left:16px">
+      <div class="metric"><div class="metric-label">Nachrichten</div><div class="metric-value" id="m-msgs">0</div></div>
+      <div class="metric"><div class="metric-label">Sync-Events</div><div class="metric-value" id="m-sync">0</div></div>
+    </div>
+  </div>
+  <div id="log" class="demo-log"></div>
+</div>
+
+<script type="module">
+import { injectNav }    from './lib/nav-snippet.js'
+injectNav()
+import { createDemoPair, createTimer, createLogWriter } from './lib/demo-runtime.js'
+import { registerComponents }          from '../src/ui/components.js'
+import { MessengerPlugin }             from '../src/plugins/messenger/index.js'
+import { registerMessengerComponents } from '../src/plugins/messenger/ui/components.js'
+import { QuPresence }                  from '../src/core/presence.js'
+
+const logEl  = document.getElementById('log')
+const log    = createLogWriter(logEl)
+const t      = createTimer(msg => log(msg))
+let msgCount = 0, syncCount = 0
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+t.step('Start')
+document.getElementById('init-status').textContent = 'Alice und Bob initialisieren…'
+
+const { relay, alice, bob } = await createDemoPair({ timer: t })
+window.qrPeers = { alice, bob, relay }
+t.done('Peers bereit')
+document.getElementById('init-overlay').remove()
+
+document.getElementById('alice-pub').textContent = alice.pub.slice(0, 16) + '…'
+document.getElementById('bob-pub').textContent   = bob.pub.slice(0, 16) + '…'
+
+// ── Register framework UI components ─────────────────────────────────────────
+registerComponents(alice.db, { me: alice.identity, net: alice.net })
+registerComponents(bob.db,   { me: bob.identity,   net: bob.net })
+registerMessengerComponents()
+log('Komponenten registriert', 'info')
+
+// ── QuPresence (typing + online/offline) ──────────────────────────────────────
+const presenceA = QuPresence({ db: alice.db, identity: alice.identity })
+presenceA.attach(alice.sync)
+const presenceB = QuPresence({ db: bob.db,   identity: bob.identity })
+presenceB.attach(bob.sync)
+
+// Announce presence
+await presenceA.sendHello(alice.net)
+await presenceB.sendHello(bob.net)
+log('Presence aktiv — Alice & Bob sind online', 'success')
+
+// ── Messenger Plugins ─────────────────────────────────────────────────────────
+const messengerA = MessengerPlugin({ db: alice.db, identity: alice.identity, net: alice.net, presence: presenceA })
+messengerA.attach(alice.sync)
+
+const messengerB = MessengerPlugin({ db: bob.db, identity: bob.identity, net: bob.net, presence: presenceB })
+messengerB.attach(bob.sync)
+
+log('MessengerPlugin für Alice und Bob attached', 'success')
+
+// ── Add each other as contacts ────────────────────────────────────────────────
+await messengerA.store.addContact(bob.pub,   { alias: 'Bob',   epub: bob.identity.epub })
+await messengerB.store.addContact(alice.pub, { alias: 'Alice', epub: alice.identity.epub })
+log('Kontakte hinzugefügt', 'info')
+
+// ── Create DM conversation ────────────────────────────────────────────────────
+const convIdA = await messengerA.store.getOrCreateDM(bob.pub)
+const convIdB = await messengerB.store.getOrCreateDM(alice.pub)
+log(`DM-Konversation: ${convIdA}`, 'info')
+
+// ── Optional: Group chat ──────────────────────────────────────────────────────
+const { convId: groupConvA, spaceId } = await messengerA.store.createGroup({
+  name:    '🏠 Gemeinsame Gruppe',
+  members: [bob.pub],
+})
+// Bob joins the group space on his side
+await messengerB.store.getOrCreateDM(alice.pub)  // already done
+// Register Bob in the group by creating a matching conv entry
+await bob.db.put(`conf/messenger/convs/group-${spaceId.slice(0, 8)}`, {
+  type:    'group',
+  convId:  `group-${spaceId.slice(0, 8)}`,
+  spaceId,
+  name:    '🏠 Gemeinsame Gruppe',
+  lastTs:  Date.now(),
+  lastMsg: null,
+  unread:  0,
+})
+log(`Gruppe erstellt: ${spaceId.slice(0, 8)}`, 'info')
+
+// ── Wire up UI components ──────────────────────────────────────────────────────
+const appA = document.getElementById('app-alice')
+appA.db        = alice.db
+appA.me        = alice.identity
+appA.presence  = presenceA
+appA.net       = alice.net
+appA.messenger = messengerA
+
+const appB = document.getElementById('app-bob')
+appB.db        = bob.db
+appB.me        = bob.identity
+appB.presence  = presenceB
+appB.net       = bob.net
+appB.messenger = messengerB
+
+// Auto-select the DM conversation in both UIs
+setTimeout(() => {
+  appA._selectConv?.(convIdA)
+  appB._selectConv?.(convIdB)
+}, 100)
+
+// ── Reactive message counter ──────────────────────────────────────────────────
+alice.db.on('conf/messenger/convs/**', () => {
+  syncCount++
+  document.getElementById('m-sync').textContent = String(syncCount)
+})
+bob.db.on('conf/messenger/convs/**', () => {
+  syncCount++
+  document.getElementById('m-sync').textContent = String(syncCount)
+})
+
+// Count messages in both spaces
+const countMsgs = async () => {
+  const msgsA = await alice.db.query(`@${spaceId}/chat/`)
+  const msgsB = await alice.db.query(`~${alice.pub}/dm/`)
+  msgCount = msgsA.length + msgsB.length
+  document.getElementById('m-msgs').textContent = String(msgCount)
+}
+
+alice.db.on(`@${spaceId}/chat/**`, () => countMsgs())
+alice.db.on(`~${alice.pub}/dm/**`, () => countMsgs())
+
+// ── Quick action buttons ───────────────────────────────────────────────────────
+document.getElementById('btn-send-text').onclick = async () => {
+  const texts = [
+    'Hallo Bob! 👋', 'Wie geht es dir?', 'Alles klar hier!',
+    'Schau mal, das ist cool!', 'Bis später 👍',
+  ]
+  const text = texts[Math.floor(Math.random() * texts.length)]
+  await messengerA.store.sendMessage(convIdA, { text })
+  log(`Alice → Bob: "${text}"`, 'success')
+}
+
+document.getElementById('btn-send-file').onclick = async () => {
+  // Create a simple test image (red square) as ArrayBuffer
+  const canvas = Object.assign(document.createElement('canvas'), { width: 200, height: 200 })
+  const ctx    = canvas.getContext('2d')
+  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7']
+  ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)]
+  ctx.fillRect(0, 0, 200, 200)
+  ctx.fillStyle = 'rgba(255,255,255,.8)'
+  ctx.font = '20px system-ui'
+  ctx.textAlign = 'center'
+  ctx.fillText('QuRay 📷', 100, 110)
+
+  const blob   = await new Promise(r => canvas.toBlob(r, 'image/png'))
+  const buf    = await blob.arrayBuffer()
+  const { sha256b64url } = await import('../src/core/identity.js')
+  const hash   = await sha256b64url(buf)
+  const meta   = { name: 'test-image.png', mime: 'image/png', size: buf.byteLength }
+  await alice.db.blobs.put(hash, buf, meta)
+  await messengerA.store.sendMessage(convIdA, {
+    text:        null,
+    attachments: [{ hash, name: meta.name, mime: meta.mime, size: meta.size }],
+  })
+  log(`Alice → Bob: Bild (${meta.size} bytes, hash: ${hash.slice(0,12)}…)`, 'success')
+}
+
+document.getElementById('btn-call').onclick = async () => {
+  if (!messengerA.calls) {
+    log('Anruf benötigt WebRTC-Transport (nicht in dieser Demo konfiguriert)', 'warning')
+    return
+  }
+  log('Alice ruft Bob an… (WebRTC-Signaling via Relay)', 'info')
+  await messengerA.calls.call(bob.pub, { audio: true, video: false })
+    .catch(e => log(`Anruf-Fehler: ${e.message}`, 'danger'))
+}
+
+document.getElementById('btn-reset').onclick = () => location.reload()
+
+log('Demo bereit — Alice und Bob können jetzt chatten! 🎉', 'success')
+</script>
+</body>
+</html>
