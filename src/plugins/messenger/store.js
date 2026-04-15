@@ -7,10 +7,13 @@
 //   • Send/query messages (group: @space/chat/, DM: ~/dm/{contact}/)
 //   • Manage contacts (~{pub}/contacts/)
 //   • Track read positions (conf/messenger/readpos/)
-//   • Register msg.read / msg.readpos sync handlers
+//   • Register msg.readpos sync handlers
 //
-// Intentionally thin — all persistence goes through QuDB, all reactivity
-// through db.on(). No internal state beyond the handler registry.
+// DM routing fix:
+//   When Alice sends to Bob, she writes to ~alicePub/dm/bobPub/{ts}-{id}.
+//   Bob must subscribe to ~alicePub/dm/bobPub/ to receive those messages.
+//   addContact() triggers this subscription via sync.subscribe() so both
+//   sides of the conversation are visible without relay-side inbox routing.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { QUBIT_TYPE }    from '../../core/qubit.js'
@@ -35,17 +38,19 @@ import {
  * const store = MessengerStore({ db: qr.db, identity: qr.me })
  * store.attach(qr._.sync)
  *
- * // Create a group chat
- * const { convId, spaceId } = await store.createGroup({ name: 'Team', members: [bobPub] })
+ * // Create a DM conversation
+ * await store.addContact(bobPub, { alias: 'Bob', epub: bob.epub })
+ * const convId = await store.getOrCreateDM(bobPub)
  *
  * // Send a text message
- * await store.sendMessage(convId, { type: 'text', text: 'Hello!' })
+ * await store.sendMessage(convId, { text: 'Hello!' })
  *
  * // React to new messages
- * const off = store.onMessages(convId, (qubit, meta) => console.log(qubit))
+ * const off = await store.onMessages(convId, (qubit, meta) => console.log(qubit))
  */
 const MessengerStore = ({ db, identity }) => {
   let _offHandlers = []
+  let _sync        = null   // set by attach(sync)
 
 
   // ── Internal helpers ────────────────────────────────────────────────────────
@@ -56,14 +61,6 @@ const MessengerStore = ({ db, identity }) => {
   const _getConvRecord = async (convId) => {
     const q = await db.get(MSG_KEY.conv(convId))
     return q?.data ?? null
-  }
-
-  /** Derive the message key prefix for a given conversation. */
-  const _msgPrefix = (conv) => {
-    if (!conv) return null
-    if (conv.type === CONV_TYPE.GROUP) return MSG_KEY.groupPrefix(conv.spaceId)
-    if (conv.type === CONV_TYPE.DM)    return MSG_KEY.dmPrefix(_myPub(), conv.contactPub)
-    return null
   }
 
 
@@ -148,6 +145,16 @@ const MessengerStore = ({ db, identity }) => {
   }
 
   /**
+   * Delete a conversation from the local registry.
+   * Does NOT delete message history — only removes the conv entry.
+   *
+   * @param {string} convId
+   */
+  const deleteConversation = async (convId) => {
+    await db.del(MSG_KEY.conv(convId)).catch(() => {})
+  }
+
+  /**
    * Update the conversation's last-message preview (called after send).
    * @private
    */
@@ -155,6 +162,36 @@ const MessengerStore = ({ db, identity }) => {
     const key  = MSG_KEY.conv(convId)
     const prev = (await db.get(key))?.data ?? {}
     await db.put(key, { ...prev, lastTs: Date.now(), lastMsg: msgText ?? null })
+  }
+
+  /**
+   * Update the conversation's last-message preview for an INCOMING message,
+   * incrementing the unread counter.
+   *
+   * @param {string} convId
+   * @param {string} [msgText]
+   */
+  const touchConvIncoming = async (convId, msgText) => {
+    const key  = MSG_KEY.conv(convId)
+    const prev = (await db.get(key))?.data ?? {}
+    await db.put(key, {
+      ...prev,
+      lastTs:  Date.now(),
+      lastMsg: msgText ?? null,
+      unread:  (prev.unread ?? 0) + 1,
+    })
+  }
+
+  /**
+   * Reset the unread counter for a conversation to 0.
+   *
+   * @param {string} convId
+   */
+  const resetUnread = async (convId) => {
+    const key  = MSG_KEY.conv(convId)
+    const prev = (await db.get(key))?.data ?? {}
+    if ((prev.unread ?? 0) === 0) return
+    await db.put(key, { ...prev, unread: 0 })
   }
 
 
@@ -209,6 +246,8 @@ const MessengerStore = ({ db, identity }) => {
 
   /**
    * Query messages for a conversation (paginated, newest-last by default).
+   * For DM conversations, queries BOTH sides (my outgoing + their outgoing to me)
+   * and merges by timestamp.
    *
    * @param {string} convId
    * @param {object} [opts] — { limit, offset, order }
@@ -217,12 +256,28 @@ const MessengerStore = ({ db, identity }) => {
   const getMessages = async (convId, opts = {}) => {
     const conv = await _getConvRecord(convId)
     if (!conv) return []
-    const prefix = _msgPrefix(conv)
-    return db.query(prefix, { order: 'key', ...opts })
+
+    if (conv.type === CONV_TYPE.GROUP) {
+      return db.query(MSG_KEY.groupPrefix(conv.spaceId), { order: 'key', ...opts })
+    }
+
+    // DM: merge both sides and sort by timestamp
+    const myPub     = _myPub()
+    const myP64     = pub64(myPub)
+    const contactP64 = pub64(conv.contactPub)
+
+    const [mine, theirs] = await Promise.all([
+      db.query(`~${myP64}/dm/${contactP64}/`,     { order: 'key', ...opts }),
+      db.query(`~${contactP64}/dm/${myP64}/`, { order: 'key', ...opts }),
+    ])
+
+    // Merge and sort by key (ts16 prefix ensures chronological order)
+    return [...mine, ...theirs].sort((a, b) => (a.key ?? '').localeCompare(b.key ?? ''))
   }
 
   /**
    * Subscribe to incoming/outgoing messages for a conversation.
+   * For DM conversations, subscribes to BOTH sides of the conversation.
    *
    * @param {string} convId
    * @param {function} fn — (qubit, meta) => void
@@ -231,8 +286,20 @@ const MessengerStore = ({ db, identity }) => {
   const onMessages = async (convId, fn) => {
     const conv = await _getConvRecord(convId)
     if (!conv) return () => {}
-    const prefix = _msgPrefix(conv)
-    return db.on(prefix + '**', fn)
+
+    if (conv.type === CONV_TYPE.GROUP) {
+      return db.on(MSG_KEY.groupPrefix(conv.spaceId) + '**', fn)
+    }
+
+    // DM: subscribe to both directions
+    const myPub      = _myPub()
+    const myP64      = pub64(myPub)
+    const contactP64  = pub64(conv.contactPub)
+
+    const off1 = db.on(`~${myP64}/dm/${contactP64}/**`,     fn)
+    const off2 = db.on(`~${contactP64}/dm/${myP64}/**`, fn)
+
+    return () => { off1(); off2() }
   }
 
 
@@ -240,6 +307,8 @@ const MessengerStore = ({ db, identity }) => {
 
   /**
    * Add or update a contact.
+   * Also subscribes to the contact's DM prefix so their messages to us are
+   * received via the relay subscription mechanism (fixes DM routing).
    *
    * @param {string} contactPub
    * @param {object} opts — { alias?, epub? }
@@ -247,12 +316,23 @@ const MessengerStore = ({ db, identity }) => {
   const addContact = async (contactPub, { alias = null, epub = null } = {}) => {
     const myPub = _myPub()
     if (!myPub) return
+    const contactP64 = pub64(contactPub)
+    const myP64      = pub64(myPub)
+
     await db.put(MSG_KEY.contact(myPub, contactPub), {
-      pub:     pub64(contactPub),
+      pub:     contactP64,
       alias,
       epub,
       addedAt: Date.now(),
     })
+
+    // Subscribe to the contact's DM space for messages they send to us.
+    // This is the fix for the DM routing issue: we explicitly pull their
+    // ~{contactPub}/dm/{myPub}/ prefix from the relay.
+    if (_sync) {
+      const dmPrefix = `~${contactP64}/dm/${myP64}/`
+      await _sync.subscribe(dmPrefix, { live: true, snapshot: true }).catch(() => {})
+    }
   }
 
   /**
@@ -274,6 +354,23 @@ const MessengerStore = ({ db, identity }) => {
     const myPub = _myPub()
     if (!myPub) return () => {}
     return db.on(MSG_KEY.contactPrefix(myPub) + '**', fn)
+  }
+
+  /**
+   * Re-subscribe to all existing contacts' DM prefixes.
+   * Call after attach(sync) to restore subscriptions on page reload.
+   * @private
+   */
+  const _resubscribeContacts = async () => {
+    if (!_sync) return
+    const myP64 = pub64(_myPub())
+    const contacts = await getContacts().catch(() => [])
+    for (const q of contacts) {
+      const contactP64 = q?.data?.pub
+      if (!contactP64) continue
+      const dmPrefix = `~${contactP64}/dm/${myP64}/`
+      await _sync.subscribe(dmPrefix, { live: true, snapshot: true }).catch(() => {})
+    }
   }
 
 
@@ -303,12 +400,14 @@ const MessengerStore = ({ db, identity }) => {
   // ── Sync handler registration ─────────────────────────────────────────────────
 
   /**
-   * Register sync handlers for read receipt types.
-   * Called by MessengerPlugin.attach(sync).
+   * Register sync handlers and store the sync reference for contact subscriptions.
+   * Call this once after QuSync is initialized.
    *
    * @param {QuSyncInstance} sync
    */
   const attach = (sync) => {
+    _sync = sync
+
     // msg.readpos — remote peer updated their read position
     _offHandlers.push(
       sync.registerHandler(QUBIT_TYPE.MSG_READPOS, async (qubit) => {
@@ -321,12 +420,16 @@ const MessengerStore = ({ db, identity }) => {
         ).catch(() => {})
       })
     )
+
+    // Re-subscribe to all existing contacts' DM prefixes (fixes missing msgs on reload)
+    _resubscribeContacts().catch(() => {})
   }
 
   /** Unregister all handlers. */
   const detach = () => {
     for (const off of _offHandlers) off?.()
     _offHandlers = []
+    _sync = null
   }
 
 
@@ -336,6 +439,7 @@ const MessengerStore = ({ db, identity }) => {
     onConversations,
     getOrCreateDM,
     createGroup,
+    deleteConversation,
 
     // Messages
     sendMessage,
@@ -347,9 +451,11 @@ const MessengerStore = ({ db, identity }) => {
     getContacts,
     onContacts,
 
-    // Read tracking
+    // Read / unread tracking
     markRead,
     getReadPosition,
+    resetUnread,
+    touchConvIncoming,
 
     // Lifecycle
     attach,

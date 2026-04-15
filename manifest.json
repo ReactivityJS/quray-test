@@ -1,0 +1,29 @@
+{
+  "name": "QuRay Chat",
+  "short_name": "QuRay",
+  "description": "Dezentraler, verschlüsselter Messenger auf Basis des QuRay-Frameworks",
+  "start_url": "/chat.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111118",
+  "theme_color": "#111118",
+  "lang": "de",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["social", "communication"],
+  "shortcuts": [
+    {
+      "name": "Neuer Chat",
+      "short_name": "Chat",
+      "url": "/chat.html#new",
+      "description": "Neuen Chat starten"
+    }
+  ]
+}
