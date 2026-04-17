@@ -297,8 +297,6 @@ qm-composer { flex-shrink: 0; }
   <div class="qm-bottom-nav-pad"></div>
 </nav>
 
-<!-- QuRouter null outlet (never injected into) -->
-<div id="qu-null" hidden></div>
 
 <script type="module">
 import QuRay from '/src/quray.js'
@@ -306,15 +304,13 @@ import { MessengerPlugin } from '/src/plugins/messenger/index.js'
 import { registerComponents } from '/src/ui/components.js'
 import { registerMessengerComponents } from '/src/plugins/messenger/ui/components.js'
 import { PushHelper } from '/src/push.js'
-import { QuRouter } from '/src/plugins/qu-router.js'
 import { resizeImg } from '/src/ui/profile.js'
 
-let qr       = null
+let qr        = null
 let messenger = null
-let push     = null
-let router   = null
-let activeConvId  = null
-let currentView   = 'app-sidebar'
+let push      = null
+let activeConvId = null
+let currentView  = 'app-sidebar'
 
 const screenLoading = document.getElementById('screen-loading')
 const screenSetup   = document.getElementById('screen-setup')
@@ -387,18 +383,17 @@ function showView(viewId) {
   }
 }
 
+const _pathToView = {
+  '/': 'app-sidebar', '/profile': 'view-profile',
+  '/settings': 'view-settings', '/new-chat': 'view-new-chat',
+}
+
 function navigateTo(path) {
-  if (router) {
-    router.navigate(path)
-  } else {
-    // Pre-boot fallback
-    const pathToView = {
-      '/': 'app-sidebar', '/profile': 'view-profile',
-      '/settings': 'view-settings', '/new-chat': 'view-new-chat',
-    }
-    const viewId = pathToView[path] ?? 'app-sidebar'
-    showView(viewId)
-  }
+  const viewId = _pathToView[path] ?? 'app-sidebar'
+  showView(viewId)
+  if (path === '/profile')  populateProfileView()
+  if (path === '/settings') populateSettingsView()
+  if (path === '/new-chat') loadPeersList()
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────
@@ -456,54 +451,28 @@ async function boot(relayUrl, alias) {
     composer.presence = qr._.presence
     composer.net      = qr._.net
 
-    // ── QuRouter for hash-based navigation ──────────────────────────────
-    router = await QuRouter.create(qr.db, {
-      prefix: 'conf/chat-router/',
-      outlet: '#qu-null',    // we handle rendering ourselves via onNavigate
-    })
-
-    // Register fixed routes (idempotent: same _id → same DB key)
-    await Promise.all([
-      router.addRoute({ _id: 'r-home',     path: '/',          title: 'Chats',        order: 1 }),
-      router.addRoute({ _id: 'r-profile',  path: '/profile',   title: 'Profil',       order: 2 }),
-      router.addRoute({ _id: 'r-settings', path: '/settings',  title: 'Einstellungen',order: 3 }),
-      router.addRoute({ _id: 'r-newchat',  path: '/new-chat',  title: 'Neuer Chat',   order: 4 }),
-    ])
-
-    const pathToView = {
-      '/':          'app-sidebar',
-      '/profile':   'view-profile',
-      '/settings':  'view-settings',
-      '/new-chat':  'view-new-chat',
-    }
-
-    router.onNavigate((path) => {
-      const viewId = pathToView[path] ?? 'app-sidebar'
-      showView(viewId)
-      if (path === '/profile')  populateProfileView()
-      if (path === '/settings') populateSettingsView()
-      if (path === '/new-chat') loadPeersList()
-    })
-
     // ── Reactive user directory: reload when peer map changes ───────────
     qr.peers.onChange(() => {
-      // Only refresh the list if the new-chat view is currently visible
       if (currentView === 'view-new-chat') loadPeersList()
       else _allKnownPeers = []   // invalidate cache so next open is fresh
+    })
+
+    // ── Watch DB for newly discovered user nodes ─────────────────────────
+    qr.db.on('~**', (qubit) => {
+      if (!qubit?.data) return
+      const m = qubit.key?.match(/^~([^/]+)\/alias$/)
+      if (!m || m[1] === qr.me.pub) return
+      // A new alias was discovered — refresh directory if open, else bust cache
+      if (currentView === 'view-new-chat') loadPeersList()
+      else _allKnownPeers = []
     })
 
     // ── Show app ────────────────────────────────────────────────────────
     screenLoading.hidden = true
     appScreen.hidden = false
 
-    // Initial view: sidebar on mobile, normal layout on desktop
-    if (isMobile()) {
-      showView('app-sidebar')
-    }
-
-    // Navigate to hash if present
-    const initPath = window.location.hash.slice(1) || '/'
-    if (initPath !== '/') router.navigate(initPath)
+    // Initial view: sidebar always visible (desktop shows both panes)
+    showView('app-sidebar')
 
     console.log('[Chat] Boot complete. Pub:', qr.me.pub.slice(0, 16) + '…')
   } catch (err) {
@@ -733,16 +702,15 @@ async function startChatWith(pub) {
   const origText = btn?.textContent
   if (btn) btn.textContent = '…'
   try {
-    // Look up alias from known peers
     const known = _allKnownPeers.find(p => p.pub === pub)
     const alias = known?.alias || pub.slice(0, 12) + '…'
     await messenger.store.addContact(pub, { alias })
     const convId = await messenger.store.getOrCreateDM(pub)
     document.getElementById('new-chat-pub-input').value = ''
+    // Navigate back to sidebar first (synchronous), then select conv
     navigateTo('/')
-    setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('qm-conv-select', { detail: { convId } }))
-    }, isMobile() ? 320 : 0)
+    // On mobile the sidebar slide-in takes ~300 ms; on desktop it's instant
+    setTimeout(() => selectConv(convId), isMobile() ? 320 : 0)
   } catch (err) {
     console.error('[NewChat] startChatWith failed:', err)
     const errEl = document.createElement('div')
@@ -772,8 +740,8 @@ document.getElementById('btn-settings').addEventListener('click', () => navigate
 
 // ── Conversation selection ────────────────────────────────────────────────
 
-document.addEventListener('qm-conv-select', (e) => {
-  activeConvId = e.detail.convId
+function selectConv(convId) {
+  activeConvId = convId
   const chat     = document.getElementById('app-chat')
   const composer = document.getElementById('app-composer')
   const sidebar  = document.getElementById('app-sidebar')
@@ -783,8 +751,11 @@ document.addEventListener('qm-conv-select', (e) => {
   if (sidebar)  sidebar.activeConvId = activeConvId
   messenger?.store.resetUnread(activeConvId).catch(() => {})
 
-  // On mobile: slide to chat window
   if (isMobile()) showView('app-right')
+}
+
+document.addEventListener('qm-conv-select', (e) => {
+  selectConv(e.detail.convId)
 })
 
 // qm-back from chat header → back to sidebar on mobile
@@ -801,10 +772,7 @@ document.addEventListener('qm-navigate', (e) => {
 // ── Bottom nav ────────────────────────────────────────────────────────────
 
 document.getElementById('nav-btn-chats').addEventListener('click', () => navigateTo('/'))
-document.getElementById('nav-btn-new').addEventListener('click', () => {
-  navigateTo('/new-chat')
-  loadPeersList()
-})
+document.getElementById('nav-btn-new').addEventListener('click', () => navigateTo('/new-chat'))
 document.getElementById('nav-btn-profile').addEventListener('click', () => navigateTo('/profile'))
 document.getElementById('nav-btn-settings').addEventListener('click', () => navigateTo('/settings'))
 
