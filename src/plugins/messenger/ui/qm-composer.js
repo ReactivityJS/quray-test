@@ -4,7 +4,7 @@
 //
 // Features:
 //   • Auto-growing textarea
-//   • File/image attachment (via qu-blob-drop)
+//   • File/image attachment via drag-drop overlay on textarea (or click attach btn)
 //   • Emoji button: native keyboard on mobile, qu-emoji-picker on desktop
 //   • Typing indicator (via presence.sendTyping)
 //   • Enter to send (Shift+Enter = newline)
@@ -21,7 +21,7 @@
 //   'qm-sent' { detail: { key } } — message was sent
 // ════════════════════════════════════════════════════════════════════════════
 
-// Mobile detection — same logic as qu-emoji-picker in components.js
+// Mobile detection
 const _isMobile = () =>
   /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) ||
   ('ontouchstart' in window && window.innerWidth < 768)
@@ -56,22 +56,26 @@ class QmComposer extends HTMLElement {
       <div class="qm-staged-files" id="staged-files" style="display:none"></div>
       <div class="qm-composer-wrap">
         <button class="qm-composer-btn" id="btn-attach" title="Anhang">📎</button>
-        <textarea
-          class="qm-composer-input"
-          id="msg-input"
-          rows="1"
-          placeholder="Nachricht schreiben…"
-        ></textarea>
+        <div class="qm-composer-textarea-wrap">
+          <textarea
+            class="qm-composer-input"
+            id="msg-input"
+            rows="1"
+            placeholder="Nachricht schreiben…"
+          ></textarea>
+          <div class="qm-drop-overlay" id="drop-overlay" aria-hidden="true">
+            📎 Datei ablegen
+          </div>
+          <qu-blob-drop
+            id="blob-drop-zone"
+            accept="image/*,video/*,audio/*,application/pdf,.txt,.zip"
+            multiple
+            style="position:absolute;inset:0;opacity:0;pointer-events:none;border:none;background:transparent"
+          ></qu-blob-drop>
+        </div>
         <button class="qm-composer-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="qm-composer-btn send" id="btn-send" title="Senden">➤</button>
       </div>
-      <qu-blob-drop
-        id="blob-drop-zone"
-        accept="image/*,video/*,audio/*,application/pdf,.txt,.zip"
-        multiple
-        style="display:none"
-        label="📎 Datei ablegen oder klicken"
-      ></qu-blob-drop>
       <qu-emoji-picker
         target="msg-input"
         trigger="btn-emoji"
@@ -79,12 +83,14 @@ class QmComposer extends HTMLElement {
       ></qu-emoji-picker>
     `
 
-    this._input      = this.querySelector('#msg-input')
-    this._sendBtn    = this.querySelector('#btn-send')
-    this._attachBtn  = this.querySelector('#btn-attach')
-    this._stagedEl   = this.querySelector('#staged-files')
-    this._dropZone   = this.querySelector('#blob-drop-zone')
-    this._emojiBtn   = this.querySelector('#btn-emoji')
+    this._input       = this.querySelector('#msg-input')
+    this._sendBtn     = this.querySelector('#btn-send')
+    this._attachBtn   = this.querySelector('#btn-attach')
+    this._stagedEl    = this.querySelector('#staged-files')
+    this._dropZone    = this.querySelector('#blob-drop-zone')
+    this._dropOverlay = this.querySelector('#drop-overlay')
+    this._emojiBtn    = this.querySelector('#btn-emoji')
+    this._textareaWrap = this.querySelector('.qm-composer-textarea-wrap')
 
     // Auto-grow textarea
     this._input.addEventListener('input', () => {
@@ -114,21 +120,41 @@ class QmComposer extends HTMLElement {
     // Send button
     this._sendBtn.addEventListener('click', () => this._send())
 
-    // Attach button → open blob drop zone
+    // Attach button → trigger file picker inside qu-blob-drop
     this._attachBtn.addEventListener('click', () => {
-      // Trigger the hidden file input inside qu-blob-drop
       const fi = this._dropZone?.querySelector('input[type=file]')
       if (fi) fi.click()
     })
 
-    // Listen for staged blobs from drop zone
+    // ── Drag-and-drop overlay on textarea wrapper ──────────────────────────
+    this._textareaWrap.addEventListener('dragenter', (e) => {
+      e.preventDefault()
+      this._dropOverlay.classList.add('visible')
+      this._dropZone.style.pointerEvents = 'auto'
+    })
+
+    this._textareaWrap.addEventListener('dragleave', (e) => {
+      if (!this._textareaWrap.contains(e.relatedTarget)) {
+        this._dropOverlay.classList.remove('visible')
+        this._dropZone.style.pointerEvents = 'none'
+      }
+    })
+
+    this._textareaWrap.addEventListener('dragover', (e) => {
+      e.preventDefault()  // required to allow drop
+    })
+
+    // ── Listen for staged blobs — hide overlay and show chip ──────────────
     this.addEventListener('qu-blob-staged', (e) => {
       const { hash, meta } = e.detail
       this._stagedFiles.push({ hash, name: meta.name, mime: meta.mime, size: meta.size })
       this._renderStagedFiles()
+      // Hide drop overlay after staging
+      this._dropOverlay.classList.remove('visible')
+      this._dropZone.style.pointerEvents = 'none'
     })
 
-    // On mobile: emoji button just focuses textarea (native keyboard handles emojis)
+    // On mobile: emoji button focuses textarea (native keyboard provides emojis)
     if (_isMobile()) {
       this._emojiBtn.addEventListener('click', () => this._input.focus())
     }

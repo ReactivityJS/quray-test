@@ -4,10 +4,12 @@
 //
 // Attributes: none
 // Properties:
-//   .store   — MessengerStore instance (required)
-//   .db      — QuDB instance (for pub key alias lookups)
+//   .store        — MessengerStore instance (required)
+//   .db           — QuDB instance (for pub key alias lookups)
+//   .me           — local identity (pub, alias) — shows own avatar in header
 // Events:
 //   'qm-conv-select' { detail: { convId } } — user clicked a conversation
+//   'qm-navigate'    { detail: { path } }   — user navigated (profile/settings)
 // ════════════════════════════════════════════════════════════════════════════
 
 import { CONV_TYPE } from '../types.js'
@@ -25,6 +27,10 @@ const _ts = (ms) => {
 class QmSidebar extends HTMLElement {
   set store(s)  { this._store = s;  this._init() }
   set db(d)     { this._db = d; }
+  set me(m) {
+    this._me = m
+    this._updateMyHeader()
+  }
   set activeConvId(id) {
     this._activeConvId = id
     this.querySelectorAll('.qm-conv-row').forEach(el => {
@@ -48,16 +54,48 @@ class QmSidebar extends HTMLElement {
     if (!this._store || !this.isConnected) return
     this._offFns.forEach(f => f?.())
     this._offFns = []
-    this._render()
 
-    // Header
     this.innerHTML = `
       <div class="qm-sidebar-header">
-        <span>💬 Chats</span>
+        <div class="qm-sidebar-me" id="sidebar-me-area" role="button" tabindex="0" title="Profil öffnen">
+          <qu-avatar id="sidebar-my-avatar" pub="" size="36" shape="circle"></qu-avatar>
+          <span class="qm-sidebar-me-name" id="sidebar-my-name">…</span>
+        </div>
+        <button class="qm-sidebar-settings-btn" id="sidebar-settings-btn" title="Einstellungen">⚙</button>
       </div>
       <div class="qm-sidebar-list" id="conv-list-inner"></div>
     `
     this._listEl = this.querySelector('#conv-list-inner')
+
+    // Wire navigation events
+    const meArea = this.querySelector('#sidebar-me-area')
+    meArea.addEventListener('click', () => {
+      this.dispatchEvent(new CustomEvent('qm-navigate', {
+        detail: { path: '/profile' }, bubbles: true,
+      }))
+    })
+    meArea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        this.dispatchEvent(new CustomEvent('qm-navigate', {
+          detail: { path: '/profile' }, bubbles: true,
+        }))
+      }
+    })
+    this.querySelector('#sidebar-settings-btn').addEventListener('click', () => {
+      this.dispatchEvent(new CustomEvent('qm-navigate', {
+        detail: { path: '/settings' }, bubbles: true,
+      }))
+    })
+
+    // Update header with own identity
+    this._updateMyHeader()
+
+    // Watch own profile changes reactively
+    if (this._me && this._db) {
+      const off = this._db.on(`~${this._me.pub}/**`, () => this._updateMyHeader())
+      this._offFns.push(off)
+    }
 
     // Load initial conversations
     this._store.getConversations().then(rows => {
@@ -79,14 +117,20 @@ class QmSidebar extends HTMLElement {
     this._offFns.push(off)
   }
 
-  _render() { /* no-op placeholder, actual render in _init */ }
+  _updateMyHeader() {
+    const avatarEl = this.querySelector('#sidebar-my-avatar')
+    const nameEl   = this.querySelector('#sidebar-my-name')
+    if (!avatarEl || !nameEl || !this._me) return
+    avatarEl.setAttribute('pub', this._me.pub)
+    nameEl.textContent = this._me.alias || this._me.pub.slice(0, 12) + '…'
+  }
 
   _renderList() {
     if (!this._listEl) return
     const sorted = [...this._convs.values()].sort((a, b) => (b.lastTs ?? 0) - (a.lastTs ?? 0))
     this._listEl.innerHTML = sorted.length
       ? sorted.map(c => this._convRow(c)).join('')
-      : '<div style="padding:20px;text-align:center;color:var(--qm-muted);font-size:12px">Keine Chats</div>'
+      : '<div style="padding:20px;text-align:center;color:var(--qm-muted);font-size:13px">Keine Chats</div>'
 
     this._listEl.querySelectorAll('.qm-conv-row').forEach(el => {
       el.addEventListener('click', () => {
@@ -108,7 +152,7 @@ class QmSidebar extends HTMLElement {
     const statusPub = isDM ? c.contactPub : ''
     return `
       <div class="qm-conv-row" data-conv-id="${c.convId}">
-        <qu-avatar pub="${statusPub || ''}" size="38"></qu-avatar>
+        <qu-avatar pub="${statusPub || ''}" size="42"></qu-avatar>
         <div class="qm-conv-info">
           <div class="qm-conv-name">${name}</div>
           <div class="qm-conv-preview">${preview}</div>

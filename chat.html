@@ -2,29 +2,32 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="QuRay Chat - Dezentraler P2P Messenger">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#111118">
+<meta name="theme-color" content="#18212b">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>QuRay Chat</title>
 <link rel="stylesheet" href="/demo/lib/demo-shell.css">
 <link rel="stylesheet" href="/src/plugins/messenger/ui/messenger.css">
 <style>
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
-  margin: 0;
-  padding: 0;
+  margin: 0; padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -33,281 +36,115 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   gap: 12px;
+  min-height: 56px;
+  flex-shrink: 0;
 }
-
 .chat-topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
+  display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
 }
-
 .chat-topbar-title {
-  font-size: 16px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 16px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
-.chat-topbar-actions {
-  display: flex;
-  gap: 8px;
-}
-
+.chat-topbar-actions { display: flex; gap: 6px; }
 .chat-topbar-actions button {
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 6px;
-  transition: all 0.15s;
+  padding: 7px 11px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); border-radius: 8px; transition: all 0.15s;
+  min-height: 36px;
 }
-
-.chat-topbar-actions button:hover {
-  background: var(--bg);
-  border-color: var(--primary);
-}
+.chat-topbar-actions button:hover { background: var(--bg); border-color: var(--primary); }
 
 .chat-main {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+  display: flex; flex: 1; overflow: hidden; position: relative;
 }
 
+/* Desktop sidebar */
 qm-sidebar {
-  min-width: 280px;
-  max-width: 360px;
+  min-width: 280px; max-width: 360px;
   border-right: 1px solid var(--border);
-  overflow-y: auto;
 }
 
 #app-right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
+  flex: 1; display: flex; flex-direction: column;
+  min-width: 0; overflow: hidden;
 }
 
-qm-chat {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
+qm-chat { flex: 1; min-height: 0; }
+qm-composer { flex-shrink: 0; }
 
-qm-composer {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
-}
-
-/* Loading & Setup Screens */
+/* Loading & Setup */
 #screen-loading, #screen-setup {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  flex-direction: column;
-  gap: 20px;
+  display: flex; align-items: center; justify-content: center;
+  height: 100dvh; flex-direction: column; gap: 20px;
 }
-
-#screen-loading[hidden], #screen-setup[hidden] {
-  display: none;
-}
+#screen-loading[hidden], #screen-setup[hidden] { display: none; }
 
 .loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  width: 40px; height: 40px;
+  border: 3px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
 }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .setup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  max-width: 340px;
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: 340px; padding: 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px;
 }
-
-.setup-form h2 {
-  margin: 0 0 8px;
-  font-size: 18px;
-}
-
+.setup-form h2 { margin: 0 0 4px; font-size: 20px; }
+.setup-form p  { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
 .setup-form input {
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
+  padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); font-size: 14px; outline: none;
+  transition: border-color .15s;
 }
-
+.setup-form input:focus { border-color: var(--primary); }
 .setup-form button {
-  padding: 10px;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 12px; background: var(--primary); color: white;
+  border: none; border-radius: 10px; cursor: pointer;
+  font-size: 15px; font-weight: 600; transition: opacity .15s;
 }
+.setup-form button:hover { opacity: 0.88; }
 
-.setup-form button:hover {
-  opacity: 0.9;
-}
-
-/* Dialogs */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog-overlay[hidden] {
-  display: none;
-}
-
-.dialog-box {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  max-width: 400px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.dialog-box h2 {
-  margin: 0 0 12px;
-  font-size: 16px;
-}
-
-.dialog-box input, .dialog-box select {
-  display: block;
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.dialog-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.dialog-buttons button {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.dialog-buttons button.primary {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
-.dialog-buttons button:hover {
-  opacity: 0.8;
-}
-
-/* Mobile */
-@media (max-width: 640px) {
-  qm-sidebar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    border-right: none;
-    z-index: 100;
-    max-width: none;
-  }
-
-  qm-sidebar.hidden-mobile {
-    display: none;
-  }
-
-  .chat-main {
-    flex-direction: column;
-  }
-
-  #app-right {
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-  }
-
-  #app-right.hidden-mobile {
-    display: none;
-  }
+/* Mobile overrides handled in messenger.css */
+@media (max-width: 768px) {
+  .chat-topbar { display: none; }
+  .chat-main { position: relative; }
+  qm-sidebar { min-width: 0; max-width: none; border-right: none; }
 }
 </style>
 </head>
 <body>
 
+<!-- Loading screen -->
 <div id="screen-loading">
   <div class="loading-spinner"></div>
-  <div>QuRay Chat wird initialisiert…</div>
+  <div style="color:var(--muted);font-size:14px">QuRay Chat wird gestartet…</div>
 </div>
 
+<!-- Setup screen -->
 <div id="screen-setup" hidden>
   <div class="setup-form">
     <h2>QuRay Chat</h2>
-    <p style="margin: 0 0 12px; color: var(--muted); font-size: 13px;">
-      Sichere P2P Kommunikation. Geben Sie Ihren Namen und die Relay-URL ein.
-    </p>
-    <input id="setup-alias" type="text" placeholder="Ihr Name" value="">
-    <input id="setup-relay" type="text" placeholder="Relay URL (z.B. ws://localhost:8080)" value="ws://localhost:8080">
+    <p>Sichere P2P Kommunikation. Geben Sie Ihren Namen und die Relay-URL ein.</p>
+    <input id="setup-alias" type="text" placeholder="Ihr Name" autocomplete="nickname">
+    <input id="setup-relay" type="text" placeholder="Relay URL (z.B. ws://localhost:8080)" value="ws://localhost:8080" autocomplete="off">
     <button id="setup-btn" type="button">Verbinden</button>
   </div>
 </div>
 
+<!-- Main app -->
 <div id="app" hidden>
+  <!-- Desktop topbar (hidden on mobile) -->
   <div class="chat-topbar">
     <div class="chat-topbar-left">
-      <button id="btn-menu" style="font-size:16px;padding:6px 10px;border:none;background:transparent;cursor:pointer">≡</button>
-      <div class="chat-topbar-title" id="topbar-title">QuRay Chat</div>
+      <div class="chat-topbar-title">💬 QuRay Chat</div>
     </div>
     <div class="chat-topbar-actions">
       <button id="btn-new-chat">+ Chat</button>
@@ -316,48 +153,133 @@ qm-composer {
   </div>
 
   <div class="chat-main">
+    <!-- Sidebar: chat list -->
     <qm-sidebar id="app-sidebar"></qm-sidebar>
+
+    <!-- Chat area -->
     <div id="app-right">
       <qm-chat id="app-chat"></qm-chat>
       <qm-composer id="app-composer"></qm-composer>
     </div>
+
+    <!-- Desktop: right panel for profile/settings/new-chat -->
+    <div id="detail-panel" style="display:none;flex-direction:column;width:320px;border-left:1px solid var(--border);background:var(--surface);overflow:hidden;flex-shrink:0"></div>
   </div>
 </div>
 
-<!-- New Chat Dialog -->
-<div id="dialog-new-chat" class="dialog-overlay" hidden>
-  <div class="dialog-box">
-    <h2>Neuer Chat</h2>
-    <input id="new-chat-pub" type="text" placeholder="Öffentlicher Schlüssel (pub)">
-    <div id="peers-list" style="margin:12px 0;padding:8px;background:var(--bg);border-radius:6px;max-height:200px;overflow-y:auto;font-size:12px;">
-      Verbinde dich mit einem Relay um Online-Nutzer zu sehen.
+<!-- Profile Panel View -->
+<div id="view-profile" class="qm-panel-view" style="display:none">
+  <div class="qm-view-header">
+    <button class="qm-view-back-btn" id="profile-back-btn">‹</button>
+    <div class="qm-view-header-title">Profil</div>
+  </div>
+  <div class="qm-view-body">
+    <div class="qm-profile-avatar-section">
+      <div class="qm-profile-avatar-wrap" id="profile-avatar-wrap" title="Avatar ändern">
+        <qu-avatar id="profile-avatar" size="80" shape="circle"></qu-avatar>
+        <input id="profile-avatar-input" type="file" accept="image/*" style="display:none">
+      </div>
+      <div class="qm-profile-alias-display" id="profile-alias-display"></div>
     </div>
-    <div class="dialog-buttons">
-      <button onclick="document.getElementById('dialog-new-chat').hidden=true">Abbrechen</button>
-      <button class="primary" id="btn-confirm-new-chat">Hinzufügen</button>
+
+    <div class="qm-view-field">
+      <label class="qm-view-label" for="profile-alias-input">Anzeigename</label>
+      <input class="qm-view-input" id="profile-alias-input" type="text" placeholder="Ihr Name" autocomplete="nickname">
+    </div>
+
+    <div class="qm-view-field">
+      <label class="qm-view-label">Öffentlicher Schlüssel (Pub)</label>
+      <div class="qm-profile-pub-row">
+        <span class="qm-profile-pub-text" id="profile-pub-display"></span>
+        <button class="qm-profile-copy-btn" id="profile-pub-copy" title="Kopieren">📋</button>
+      </div>
+    </div>
+
+    <button class="qm-view-btn" id="profile-save-btn">Speichern</button>
+  </div>
+</div>
+
+<!-- Settings Panel View -->
+<div id="view-settings" class="qm-panel-view" style="display:none">
+  <div class="qm-view-header">
+    <button class="qm-view-back-btn" id="settings-back-btn">‹</button>
+    <div class="qm-view-header-title">Einstellungen</div>
+  </div>
+  <div class="qm-view-body">
+    <div class="qm-settings-section-title">Netzwerk</div>
+    <div class="qm-settings-row">
+      <span class="qm-settings-row-label">Relay URL</span>
+      <span id="settings-relay-display" style="font-size:12px;color:var(--muted);font-family:monospace;text-align:right;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    </div>
+    <div class="qm-settings-row">
+      <span class="qm-settings-row-label">Verbindung</span>
+      <span id="settings-status-display" style="font-size:13px;color:var(--success)">—</span>
+    </div>
+    <div class="qm-settings-row">
+      <span class="qm-settings-row-label">Identität</span>
+      <code id="settings-id-display" style="font-size:11px;color:var(--muted)"></code>
+    </div>
+
+    <div class="qm-settings-section-title" style="margin-top:8px">Benachrichtigungen</div>
+    <div class="qm-settings-row">
+      <label class="qm-settings-row-label" for="settings-push-cb" style="cursor:pointer">Push-Benachrichtigungen</label>
+      <input id="settings-push-cb" type="checkbox" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+    </div>
+
+    <div style="margin-top:24px">
+      <button class="qm-view-btn" id="settings-close-btn">Schließen</button>
     </div>
   </div>
 </div>
 
-<!-- Settings Dialog -->
-<div id="dialog-settings" class="dialog-overlay" hidden>
-  <div class="dialog-box">
-    <h2>Einstellungen</h2>
-    <label style="font-size:12px;color:var(--muted)">Alias</label>
-    <input id="settings-alias" type="text" placeholder="Ihr Name">
-    <label style="font-size:12px;color:var(--muted)">Relay URL</label>
-    <input id="settings-relay" type="text" readonly style="opacity:0.6">
-    <label style="font-size:12px;color:var(--muted)">Status</label>
-    <div id="settings-status" style="padding:8px;background:var(--bg);border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
-    <label style="font-size:12px;color:var(--muted)">
-      <input id="settings-push" type="checkbox"> Push-Benachrichtigungen
-    </label>
-    <div class="dialog-buttons">
-      <button onclick="document.getElementById('dialog-settings').hidden=true">Schließen</button>
-      <button class="primary" id="btn-save-settings">Speichern</button>
+<!-- New Chat Panel View -->
+<div id="view-new-chat" class="qm-panel-view" style="display:none">
+  <div class="qm-view-header">
+    <button class="qm-view-back-btn" id="new-chat-back-btn">‹</button>
+    <div class="qm-view-header-title">Neuer Chat</div>
+  </div>
+  <div class="qm-view-body">
+    <div class="qm-view-field">
+      <label class="qm-view-label" for="new-chat-pub-input">Öffentlicher Schlüssel</label>
+      <input class="qm-view-input" id="new-chat-pub-input" type="text" placeholder="Pub-Key eingeben…" autocomplete="off" spellcheck="false">
     </div>
+
+    <div class="qm-settings-section-title">Online-Nutzer</div>
+    <div class="qm-peers-list" id="peers-online-list">
+      <div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">
+        Mit Relay verbinden um Nutzer zu sehen…
+      </div>
+    </div>
+
+    <button class="qm-view-btn" id="new-chat-confirm-btn" style="margin-top:8px">Chat starten</button>
   </div>
 </div>
+
+<!-- Mobile bottom navigation -->
+<nav class="qm-bottom-nav" id="bottom-nav">
+  <div class="qm-bottom-nav-inner">
+    <button class="qm-bottom-nav-btn active" id="nav-btn-chats">
+      <span class="qm-bottom-nav-icon">💬</span>
+      <span>Chats</span>
+    </button>
+    <button class="qm-bottom-nav-btn" id="nav-btn-new">
+      <span class="qm-bottom-nav-icon">✚</span>
+      <span>Neu</span>
+    </button>
+    <button class="qm-bottom-nav-btn" id="nav-btn-profile">
+      <span class="qm-bottom-nav-icon">👤</span>
+      <span>Profil</span>
+    </button>
+    <button class="qm-bottom-nav-btn" id="nav-btn-settings">
+      <span class="qm-bottom-nav-icon">⚙</span>
+      <span>Mehr</span>
+    </button>
+  </div>
+  <div class="qm-bottom-nav-pad"></div>
+</nav>
+
+<!-- QuRouter null outlet (never injected into) -->
+<div id="qu-null" hidden></div>
 
 <script type="module">
 import QuRay from '/src/quray.js'
@@ -365,18 +287,110 @@ import { MessengerPlugin } from '/src/plugins/messenger/index.js'
 import { registerComponents } from '/src/ui/components.js'
 import { registerMessengerComponents } from '/src/plugins/messenger/ui/components.js'
 import { PushHelper } from '/src/push.js'
+import { QuRouter } from '/src/plugins/qu-router.js'
+import { resizeImg } from '/src/ui/profile.js'
 
-let qr = null
+let qr       = null
 let messenger = null
-let push = null
-let activeConvId = null
+let push     = null
+let router   = null
+let activeConvId  = null
+let currentView   = 'app-sidebar'
 
 const screenLoading = document.getElementById('screen-loading')
-const screenSetup = document.getElementById('screen-setup')
-const appScreen = document.getElementById('app')
-const setupAlias = document.getElementById('setup-alias')
-const setupRelay = document.getElementById('setup-relay')
-const setupBtn = document.getElementById('setup-btn')
+const screenSetup   = document.getElementById('screen-setup')
+const appScreen     = document.getElementById('app')
+const setupAlias    = document.getElementById('setup-alias')
+const setupRelay    = document.getElementById('setup-relay')
+const setupBtn      = document.getElementById('setup-btn')
+
+// ── View management ──────────────────────────────────────────────────────
+
+const MOBILE_BP = 768
+
+function isMobile() { return window.innerWidth <= MOBILE_BP }
+
+function showView(viewId) {
+  currentView = viewId
+
+  if (isMobile()) {
+    // Mobile: full-screen stacked views via .view-active class
+    const mobileViews = ['app-sidebar', 'app-right',
+      'view-profile', 'view-settings', 'view-new-chat']
+
+    mobileViews.forEach(id => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.classList.remove('view-active')
+      // Panel views: show as block (flex in CSS handles layout)
+      if (['view-profile','view-settings','view-new-chat'].includes(id)) {
+        el.style.display = 'none'
+      }
+    })
+
+    const target = document.getElementById(viewId)
+    if (target) {
+      if (['view-profile','view-settings','view-new-chat'].includes(viewId)) {
+        target.style.display = 'flex'
+      }
+      // Force reflow for transition
+      requestAnimationFrame(() => target.classList.add('view-active'))
+    }
+
+    // Update bottom nav active state
+    const navMap = {
+      'app-sidebar':   'nav-btn-chats',
+      'app-right':     'nav-btn-chats',
+      'view-new-chat': 'nav-btn-new',
+      'view-profile':  'nav-btn-profile',
+      'view-settings': 'nav-btn-settings',
+    }
+    document.querySelectorAll('.qm-bottom-nav-btn').forEach(b => b.classList.remove('active'))
+    const activeNavId = navMap[viewId]
+    if (activeNavId) document.getElementById(activeNavId)?.classList.add('active')
+
+  } else {
+    // Desktop: panel views open as right drawer
+    const panel = document.getElementById('detail-panel')
+    const panelViews = ['view-profile', 'view-settings', 'view-new-chat']
+
+    panelViews.forEach(id => {
+      const el = document.getElementById(id)
+      if (el) { el.style.display = 'none'; el.classList.remove('view-active') }
+    })
+
+    if (panelViews.includes(viewId)) {
+      const el = document.getElementById(viewId)
+      if (el && panel) {
+        // Move view into panel on desktop
+        panel.style.display = 'flex'
+        panel.innerHTML = ''
+        panel.appendChild(el)
+        el.style.display = 'flex'
+        el.style.flex = '1'
+        el.classList.add('view-active')
+      }
+    } else {
+      if (panel) panel.style.display = 'none'
+    }
+  }
+}
+
+function navigateTo(path) {
+  if (router) {
+    router.navigate(path)
+  } else {
+    // Pre-boot fallback
+    const pathToView = {
+      '/': 'app-sidebar', '/profile': 'view-profile',
+      '/settings': 'view-settings', '/new-chat': 'view-new-chat',
+    }
+    const viewId = pathToView[path] ?? 'app-sidebar'
+    showView(viewId)
+  }
+}
+
+// ── Boot ────────────────────────────────────────────────────────────────
 
 async function boot(relayUrl, alias) {
   try {
@@ -384,7 +398,6 @@ async function boot(relayUrl, alias) {
     screenSetup.hidden = true
     appScreen.hidden = true
 
-    // Initialize QuRay
     qr = await QuRay.init({
       relay: relayUrl,
       alias: alias || undefined,
@@ -392,197 +405,311 @@ async function boot(relayUrl, alias) {
       presence: true,
     })
 
-    // Save relay URL for next session
     localStorage.setItem('qr_relay_url', relayUrl)
     localStorage.setItem('qr_alias', alias || '')
 
-    // Initialize Messenger plugin
     messenger = MessengerPlugin({
-      db: qr.db,
+      db:       qr.db,
       identity: qr.me,
-      net: qr._.net,
+      net:      qr._.net,
       presence: qr._.presence,
     })
     messenger.attach(qr._.sync)
 
-    // Register UI components
     registerComponents(qr.db, { me: qr.me, net: qr._.net })
     registerMessengerComponents()
 
-    // Setup push notifications
     push = PushHelper(qr)
-    try {
-      await push.registerSW({ swUrl: '/sw.js', scope: '/' })
-    } catch (e) {
-      console.warn('Push registration failed:', e)
-    }
+    try { await push.registerSW({ swUrl: '/sw.js', scope: '/' }) } catch (_) {}
 
-    // Wire UI components
-    const sidebar = document.getElementById('app-sidebar')
-    const chat = document.getElementById('app-chat')
+    // Wire sidebar
+    const sidebar  = document.getElementById('app-sidebar')
+    const chat     = document.getElementById('app-chat')
     const composer = document.getElementById('app-composer')
 
     sidebar.store = messenger.store
-    sidebar.db = qr.db
+    sidebar.db    = qr.db
+    sidebar.me    = qr.me               // ← new: own avatar in header
 
-    chat.store = messenger.store
-    chat.db = qr.db
-    chat.me = qr.me
-    chat.calls = messenger.calls
+    chat.store    = messenger.store
+    chat.db       = qr.db
+    chat.me       = qr.me
+    chat.calls    = messenger.calls
     chat.presence = qr._.presence
 
-    composer.store = messenger.store
-    composer.db = qr.db
+    composer.store    = messenger.store
+    composer.db       = qr.db
     composer.presence = qr._.presence
-    composer.net = qr._.net
+    composer.net      = qr._.net
 
-    // Handle conversation selection
-    document.addEventListener('qm-conv-select', (e) => {
-      activeConvId = e.detail.convId
-      chat.convId = activeConvId
-      composer.convId = activeConvId
-      sidebar.activeConvId = activeConvId
-      messenger.store.resetUnread(activeConvId).catch(() => {})
-      updateTopbar()
+    // ── QuRouter for hash-based navigation ──────────────────────────────
+    router = await QuRouter.create(qr.db, {
+      prefix: 'conf/chat-router/',
+      outlet: '#qu-null',    // we handle rendering ourselves via onNavigate
     })
 
-    // Show app screen
+    // Register fixed routes (idempotent: same _id → same DB key)
+    await Promise.all([
+      router.addRoute({ _id: 'r-home',     path: '/',          title: 'Chats',        order: 1 }),
+      router.addRoute({ _id: 'r-profile',  path: '/profile',   title: 'Profil',       order: 2 }),
+      router.addRoute({ _id: 'r-settings', path: '/settings',  title: 'Einstellungen',order: 3 }),
+      router.addRoute({ _id: 'r-newchat',  path: '/new-chat',  title: 'Neuer Chat',   order: 4 }),
+    ])
+
+    const pathToView = {
+      '/':          'app-sidebar',
+      '/profile':   'view-profile',
+      '/settings':  'view-settings',
+      '/new-chat':  'view-new-chat',
+    }
+
+    router.onNavigate((path) => {
+      const viewId = pathToView[path] ?? 'app-sidebar'
+      showView(viewId)
+      if (path === '/profile')  populateProfileView()
+      if (path === '/settings') populateSettingsView()
+      if (path === '/new-chat') loadPeersList()
+    })
+
+    // ── Show app ────────────────────────────────────────────────────────
     screenLoading.hidden = true
     appScreen.hidden = false
 
-    // Update settings UI
-    document.getElementById('settings-relay').value = relayUrl
-    document.getElementById('settings-alias').value = qr.me.alias || ''
-    updateSettingsStatus()
+    // Initial view: sidebar on mobile, normal layout on desktop
+    if (isMobile()) {
+      showView('app-sidebar')
+    }
+
+    // Navigate to hash if present
+    const initPath = window.location.hash.slice(1) || '/'
+    if (initPath !== '/') router.navigate(initPath)
 
     console.log('[Chat] Boot complete. Pub:', qr.me.pub.slice(0, 16) + '…')
-  } catch (error) {
-    console.error('[Chat] Boot failed:', error)
-    alert('Fehler: ' + error.message)
+  } catch (err) {
+    console.error('[Chat] Boot failed:', err)
+    alert('Fehler beim Starten: ' + err.message)
     screenLoading.hidden = true
     screenSetup.hidden = false
   }
 }
 
-function updateTopbar() {
-  if (!activeConvId || !messenger) return
-  messenger.store.getConversations().then(convs => {
-    const conv = convs.find(q => q?.data?.convId === activeConvId)?.data
-    if (conv) {
-      document.getElementById('topbar-title').textContent = conv.name || 'Chat'
-    }
-  })
+// ── Profile view ─────────────────────────────────────────────────────────
+
+function populateProfileView() {
+  if (!qr) return
+  const aliasInput    = document.getElementById('profile-alias-input')
+  const pubDisplay    = document.getElementById('profile-pub-display')
+  const aliasDisplay  = document.getElementById('profile-alias-display')
+  const avatarEl      = document.getElementById('profile-avatar')
+
+  if (aliasInput)   aliasInput.value    = qr.me.alias || ''
+  if (pubDisplay)   pubDisplay.textContent = qr.me.pub
+  if (aliasDisplay) aliasDisplay.textContent = qr.me.alias || qr.me.pub.slice(0, 16) + '…'
+  if (avatarEl)     avatarEl.setAttribute('pub', qr.me.pub)
 }
 
-async function updateSettingsStatus() {
+document.getElementById('profile-avatar-wrap').addEventListener('click', () => {
+  document.getElementById('profile-avatar-input').click()
+})
+
+document.getElementById('profile-avatar-input').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]
+  if (!file || !qr) return
+  e.target.value = ''   // reset for re-selection
+  try {
+    const blob   = await resizeImg(file, 128)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result   // data:image/jpeg;base64,…
+      await qr.node.user.setAvatar(base64)
+      document.getElementById('profile-avatar')?.setAttribute('pub', qr.me.pub)
+    }
+    reader.readAsDataURL(blob)
+  } catch (err) {
+    console.warn('[Profile] Avatar upload failed:', err)
+  }
+})
+
+document.getElementById('profile-save-btn').addEventListener('click', async () => {
   if (!qr) return
-  const status = document.getElementById('settings-status')
-  const relayCount = qr.relays.length
-  status.innerHTML = `
-    Identität: <code style="font-size:11px">${qr.me.pub.slice(0, 12)}…</code><br>
-    Relays: ${relayCount} verbunden<br>
-    Speicher: <span id="storage-info">-</span>
-  `
+  const newAlias = document.getElementById('profile-alias-input').value.trim()
+  if (newAlias) {
+    try {
+      await qr.node.user.setAlias(newAlias)   // ← correct API (not db.put)
+      localStorage.setItem('qr_alias', newAlias)
+      // Update sidebar header reactively (it watches ~pub/**)
+      document.getElementById('profile-alias-display').textContent = newAlias
+    } catch (err) {
+      console.warn('[Profile] Alias save failed:', err)
+    }
+  }
+  navigateTo('/')
+})
+
+document.getElementById('profile-pub-copy').addEventListener('click', async () => {
+  const pub = qr?.me?.pub
+  if (!pub) return
+  const btn = document.getElementById('profile-pub-copy')
+  try {
+    await navigator.clipboard.writeText(pub)
+  } catch (_) {
+    // Fallback for non-HTTPS
+    const ta = Object.assign(document.createElement('textarea'), {
+      value: pub, style: 'position:fixed;opacity:0',
+    })
+    document.body.appendChild(ta)
+    ta.select(); document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  btn.textContent = '✓'
+  setTimeout(() => { btn.textContent = '📋' }, 1500)
+})
+
+document.getElementById('profile-back-btn').addEventListener('click', () => navigateTo('/'))
+
+// ── Settings view ─────────────────────────────────────────────────────────
+
+function populateSettingsView() {
+  if (!qr) return
+  const relayUrl = localStorage.getItem('qr_relay_url') || ''
+  document.getElementById('settings-relay-display').textContent = relayUrl
+  document.getElementById('settings-status-display').textContent =
+    qr.relays.length ? `${qr.relays.length} verbunden` : 'Getrennt'
+  document.getElementById('settings-id-display').textContent =
+    qr.me.pub.slice(0, 20) + '…'
 }
+
+document.getElementById('settings-back-btn').addEventListener('click', () => navigateTo('/'))
+document.getElementById('settings-close-btn').addEventListener('click', () => navigateTo('/'))
+
+// ── New Chat view ─────────────────────────────────────────────────────────
 
 async function loadPeersList() {
-  const peersList = document.getElementById('peers-list')
-  if (!qr || !qr.relays.length) {
-    peersList.innerHTML = 'Nicht mit Relay verbunden'
+  const list = document.getElementById('peers-online-list')
+  if (!qr) return
+  list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Lade…</div>'
+
+  if (!qr.relays?.length) {
+    list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Nicht mit Relay verbunden</div>'
     return
   }
-
   try {
-    const relay = qr.relays[0]
+    const relay   = qr.relays[0]
     const httpUrl = relay.url.replace(/^ws/, 'http')
-    const res = await fetch(`${httpUrl}/api/peers`)
-    const data = await res.json()
-    const peers = data.peers || []
+    const res     = await fetch(`${httpUrl}/api/peers`)
+    const data    = await res.json()
+    const peers   = (data.peers || []).filter(p => p.pub !== qr.me.pub)
 
     if (!peers.length) {
-      peersList.innerHTML = 'Keine Online-Nutzer'
+      list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Keine anderen Online-Nutzer</div>'
       return
     }
 
-    peersList.innerHTML = peers
-      .filter(p => p.pub !== qr.me.pub)
-      .map(p => `
-        <div style="padding:6px;background:var(--surface);border-radius:4px;margin-bottom:6px;cursor:pointer"
-             onclick="document.getElementById('new-chat-pub').value='${p.pub}'; this.style.background='var(--primary)'; this.style.color='white'">
-          <strong>${p.alias || 'Unbekannt'}</strong><br>
-          <code style="font-size:10px">${p.pub.slice(0, 16)}…</code>
+    list.innerHTML = peers.map(p => `
+      <div class="qm-peer-row" data-pub="${p.pub}">
+        <qu-avatar pub="${p.pub}" size="36" shape="circle"></qu-avatar>
+        <div>
+          <div class="qm-peer-row-name">${p.alias || 'Unbekannt'}</div>
+          <div class="qm-peer-row-pub">${p.pub.slice(0, 20)}…</div>
         </div>
-      `).join('')
-  } catch (e) {
-    peersList.innerHTML = 'Fehler beim Laden der Peers: ' + e.message
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.qm-peer-row').forEach(row => {
+      row.addEventListener('click', () => {
+        document.getElementById('new-chat-pub-input').value = row.dataset.pub
+        list.querySelectorAll('.qm-peer-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+      })
+    })
+  } catch (err) {
+    list.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Fehler: ${err.message}</div>`
   }
 }
 
-// Event listeners
-setupBtn.onclick = async () => {
-  const relay = setupRelay.value.trim()
-  const alias = setupAlias.value.trim()
-  if (!relay) {
-    alert('Geben Sie eine Relay URL ein')
-    return
-  }
-  await boot(relay, alias)
-}
-
-setupRelay.onkeydown = (e) => {
-  if (e.key === 'Enter') setupBtn.click()
-}
-
-setupAlias.onkeydown = (e) => {
-  if (e.key === 'Enter') setupBtn.click()
-}
-
-document.getElementById('btn-menu').onclick = () => {
-  const sidebar = document.getElementById('app-sidebar')
-  sidebar.classList.toggle('hidden-mobile')
-  document.getElementById('app-right').classList.toggle('hidden-mobile')
-}
-
-document.getElementById('btn-new-chat').onclick = () => {
-  document.getElementById('dialog-new-chat').hidden = false
-  loadPeersList()
-}
-
-document.getElementById('btn-confirm-new-chat').onclick = async () => {
-  const pub = document.getElementById('new-chat-pub').value.trim()
+document.getElementById('new-chat-confirm-btn').addEventListener('click', async () => {
+  if (!messenger) return
+  const pub = document.getElementById('new-chat-pub-input').value.trim()
   if (!pub) return
   try {
     await messenger.store.addContact(pub, { alias: pub.slice(0, 12) + '…' })
     const convId = await messenger.store.getOrCreateDM(pub)
-    document.getElementById('dialog-new-chat').hidden = true
-    document.getElementById('new-chat-pub').value = ''
-    document.querySelector('#app-sidebar').dispatchEvent(
-      new CustomEvent('qm-conv-select', { detail: { convId }, bubbles: true })
-    )
-  } catch (e) {
-    alert('Fehler: ' + e.message)
+    document.getElementById('new-chat-pub-input').value = ''
+    navigateTo('/')
+    // Select the new conversation
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('qm-conv-select', { detail: { convId } }))
+    }, isMobile() ? 300 : 0)
+  } catch (err) {
+    alert('Fehler: ' + err.message)
   }
-}
+})
 
-document.getElementById('btn-settings').onclick = () => {
-  document.getElementById('dialog-settings').hidden = false
-}
+document.getElementById('new-chat-back-btn').addEventListener('click', () => navigateTo('/'))
 
-document.getElementById('btn-save-settings').onclick = async () => {
-  const newAlias = document.getElementById('settings-alias').value.trim()
-  if (newAlias && qr.me.alias !== newAlias) {
-    try {
-      await qr.db.put('~' + qr.me.pub + '/profile', { alias: newAlias })
-      qr.me.alias = newAlias
-      localStorage.setItem('qr_alias', newAlias)
-    } catch (e) {
-      console.warn('Alias save failed:', e)
-    }
-  }
-  document.getElementById('dialog-settings').hidden = true
-}
+// ── Desktop topbar buttons ────────────────────────────────────────────────
 
-// Check for saved relay URL on load
+document.getElementById('btn-new-chat').addEventListener('click', () => navigateTo('/new-chat'))
+document.getElementById('btn-settings').addEventListener('click', () => navigateTo('/settings'))
+
+// ── Conversation selection ────────────────────────────────────────────────
+
+document.addEventListener('qm-conv-select', (e) => {
+  activeConvId = e.detail.convId
+  const chat     = document.getElementById('app-chat')
+  const composer = document.getElementById('app-composer')
+  const sidebar  = document.getElementById('app-sidebar')
+
+  if (chat)     chat.convId     = activeConvId
+  if (composer) composer.convId = activeConvId
+  if (sidebar)  sidebar.activeConvId = activeConvId
+  messenger?.store.resetUnread(activeConvId).catch(() => {})
+
+  // On mobile: slide to chat window
+  if (isMobile()) showView('app-right')
+})
+
+// qm-back from chat header → back to sidebar on mobile
+document.addEventListener('qm-back', () => {
+  if (isMobile()) navigateTo('/')
+})
+
+// qm-navigate from sidebar header buttons
+document.addEventListener('qm-navigate', (e) => {
+  const path = e.detail?.path
+  if (path) navigateTo(path)
+})
+
+// ── Bottom nav ────────────────────────────────────────────────────────────
+
+document.getElementById('nav-btn-chats').addEventListener('click', () => navigateTo('/'))
+document.getElementById('nav-btn-new').addEventListener('click', () => {
+  navigateTo('/new-chat')
+  loadPeersList()
+})
+document.getElementById('nav-btn-profile').addEventListener('click', () => navigateTo('/profile'))
+document.getElementById('nav-btn-settings').addEventListener('click', () => navigateTo('/settings'))
+
+// ── Setup form ────────────────────────────────────────────────────────────
+
+setupBtn.onclick = async () => {
+  const relay = setupRelay.value.trim()
+  const alias = setupAlias.value.trim()
+  if (!relay) { alert('Bitte Relay URL eingeben'); return }
+  await boot(relay, alias)
+}
+setupRelay.addEventListener('keydown', e => { if (e.key === 'Enter') setupBtn.click() })
+setupAlias.addEventListener('keydown', e => { if (e.key === 'Enter') setupBtn.click() })
+
+// ── Window resize: re-apply layout ───────────────────────────────────────
+
+window.addEventListener('resize', () => {
+  // Re-apply layout if crossing the breakpoint
+  if (!appScreen.hidden) showView(currentView)
+})
+
+// ── Auto-boot from localStorage ───────────────────────────────────────────
+
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('qr_relay_url')
   const alias = localStorage.getItem('qr_alias') || ''
