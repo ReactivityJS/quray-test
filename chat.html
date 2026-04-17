@@ -162,8 +162,6 @@ qm-composer { flex-shrink: 0; }
       <qm-composer id="app-composer"></qm-composer>
     </div>
 
-    <!-- Desktop: right panel for profile/settings/new-chat -->
-    <div id="detail-panel" style="display:none;flex-direction:column;width:320px;border-left:1px solid var(--border);background:var(--surface);overflow:hidden;flex-shrink:0"></div>
   </div>
 </div>
 
@@ -313,31 +311,26 @@ function isMobile() { return window.innerWidth <= MOBILE_BP }
 function showView(viewId) {
   currentView = viewId
 
-  if (isMobile()) {
-    // Mobile: full-screen stacked views via .view-active class
-    const mobileViews = ['app-sidebar', 'app-right',
-      'view-profile', 'view-settings', 'view-new-chat']
+  const PANEL_VIEWS = ['view-profile', 'view-settings', 'view-new-chat']
 
-    mobileViews.forEach(id => {
+  if (isMobile()) {
+    // Mobile: full-screen stacked views via .view-active class + CSS transitions
+    const allViews = ['app-sidebar', 'app-right', ...PANEL_VIEWS]
+    allViews.forEach(id => {
       const el = document.getElementById(id)
       if (!el) return
       el.classList.remove('view-active')
-      // Panel views: show as block (flex in CSS handles layout)
-      if (['view-profile','view-settings','view-new-chat'].includes(id)) {
-        el.style.display = 'none'
-      }
+      if (PANEL_VIEWS.includes(id)) el.style.display = 'none'
     })
 
     const target = document.getElementById(viewId)
     if (target) {
-      if (['view-profile','view-settings','view-new-chat'].includes(viewId)) {
-        target.style.display = 'flex'
-      }
-      // Force reflow for transition
+      if (PANEL_VIEWS.includes(viewId)) target.style.display = 'flex'
+      // One rAF to allow display change to paint before transition starts
       requestAnimationFrame(() => target.classList.add('view-active'))
     }
 
-    // Update bottom nav active state
+    // Update bottom nav
     const navMap = {
       'app-sidebar':   'nav-btn-chats',
       'app-right':     'nav-btn-chats',
@@ -350,28 +343,25 @@ function showView(viewId) {
     if (activeNavId) document.getElementById(activeNavId)?.classList.add('active')
 
   } else {
-    // Desktop: panel views open as right drawer
-    const panel = document.getElementById('detail-panel')
-    const panelViews = ['view-profile', 'view-settings', 'view-new-chat']
-
-    panelViews.forEach(id => {
+    // Desktop: panel views are position:fixed right drawers — no DOM moves needed.
+    // Close all panels first, then open the requested one.
+    PANEL_VIEWS.forEach(id => {
       const el = document.getElementById(id)
-      if (el) { el.style.display = 'none'; el.classList.remove('view-active') }
+      if (!el) return
+      el.classList.remove('view-active')
+      // Hide after transition ends so display:none doesn't cut off animation
+      el.addEventListener('transitionend', function hide() {
+        if (!el.classList.contains('view-active')) el.style.display = 'none'
+        el.removeEventListener('transitionend', hide)
+      }, { once: true })
     })
 
-    if (panelViews.includes(viewId)) {
-      const el = document.getElementById(viewId)
-      if (el && panel) {
-        // Move view into panel on desktop
-        panel.style.display = 'flex'
-        panel.innerHTML = ''
-        panel.appendChild(el)
-        el.style.display = 'flex'
-        el.style.flex = '1'
-        el.classList.add('view-active')
+    if (PANEL_VIEWS.includes(viewId)) {
+      const target = document.getElementById(viewId)
+      if (target) {
+        target.style.display = 'flex'
+        requestAnimationFrame(() => target.classList.add('view-active'))
       }
-    } else {
-      if (panel) panel.style.display = 'none'
     }
   }
 }

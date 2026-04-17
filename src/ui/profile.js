@@ -10,7 +10,7 @@
 
 // resizeImg — Bild auf maxPx skalieren, JPEG konvertieren.
 // Einzige Utility die nicht in node.js gehoert (browser-spezifisch).
-const resizeImg = (file, maxPx = 128) =>
+export const resizeImg = (file, maxPx = 128) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
