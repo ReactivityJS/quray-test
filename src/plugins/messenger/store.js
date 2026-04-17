@@ -413,13 +413,64 @@ const MessengerStore = ({ db, identity }) => {
       sync.registerHandler(QUBIT_TYPE.MSG_READPOS, async (qubit) => {
         const { convId, key } = qubit.data ?? {}
         if (!convId || !key) return
-        // Store remote read position in our local conf (scoped to sender pub)
         await db.put(
           `conf/messenger/remote-readpos/${pub64(qubit.from)}/${convId}`,
           { key, ts: qubit.ts }
         ).catch(() => {})
       })
     )
+
+    // Auto-create conversation record when an incoming DM arrives.
+    // Pattern: ~{senderPub}/dm/{myPub}/{ts16}-{id}
+    const myP64 = pub64(_myPub())
+    if (myP64) {
+      _offHandlers.push(
+        db.on('~**', async (qubit, ctx) => {
+          if (ctx?.event === 'del' || !qubit?.data) return
+          const key = qubit.key ?? ''
+          const m = key.match(/^~([^/]+)\/dm\/([^/]+)\//)
+          if (!m) return
+          const senderP64 = m[1]
+          const targetP64 = m[2]
+          if (targetP64 !== myP64) return   // not addressed to me
+          if (senderP64 === myP64) return   // my own outgoing messages
+
+          // Ensure contact record exists so subscriptions are tracked
+          const contactKey = MSG_KEY.contact(myP64, senderP64)
+          const existingContact = await db.get(contactKey).catch(() => null)
+          if (!existingContact) {
+            await db.put(contactKey, {
+              pub: senderP64, alias: null, epub: null, addedAt: Date.now(),
+            }).catch(() => {})
+            if (_sync) {
+              await _sync.subscribe(`~${senderP64}/dm/${myP64}/`, { live: true, snapshot: true }).catch(() => {})
+            }
+          }
+
+          // Deterministic convId (same formula as getOrCreateDM)
+          const parts  = [myP64, senderP64].sort()
+          const convId = `dm-${parts[0].slice(0, 12)}-${parts[1].slice(0, 12)}`
+          const convKey = MSG_KEY.conv(convId)
+          const existing = await db.get(convKey).catch(() => null)
+          const msgText  = qubit.data?.text ?? (qubit.data?.attachments?.length ? '📎' : null)
+
+          if (!existing) {
+            await db.put(convKey, {
+              type:       CONV_TYPE.DM,
+              convId,
+              contactPub: senderP64,
+              spaceId:    null,
+              name:       null,
+              lastTs:     Date.now(),
+              lastMsg:    msgText ?? null,
+              unread:     1,
+            }).catch(() => {})
+          } else {
+            await touchConvIncoming(convId, msgText).catch(() => {})
+          }
+        })
+      )
+    }
 
     // Re-subscribe to all existing contacts' DM prefixes (fixes missing msgs on reload)
     _resubscribeContacts().catch(() => {})

@@ -1187,6 +1187,14 @@ const _formatBytes = (bytes) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ════════════════════════════════ PEER ══════════════════════════════════════
 class QuAvatar extends QuElement {
+  static get observedAttributes() { return ['pub', 'size', 'shape'] }
+  attributeChangedCallback(name, old, val) {
+    if (old === val) return
+    this._offFns?.forEach(f => f?.())
+    this._offFns = []
+    this._quInit()
+  }
+
   _quInit() {
     this._pub  = this._attr('pub')
     this._size = parseInt(this._attr('size', '32'))

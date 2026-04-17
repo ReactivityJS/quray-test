@@ -30,6 +30,14 @@ class QmSidebar extends HTMLElement {
   set me(m) {
     this._me = m
     this._updateMyHeader()
+    // Set up reactive watcher for own profile now that _me is available.
+    // (_init() runs before _me is set, so the guard there always fails.)
+    if (this._db && this._me && this.isConnected) {
+      if (this._meWatchOff) { this._meWatchOff(); this._meWatchOff = null }
+      this._meWatchOff = this._db.on(`~${this._me.pub}/**`, () => this._updateMyHeader())
+      this._offFns = this._offFns ?? []
+      this._offFns.push(this._meWatchOff)
+    }
   }
   set activeConvId(id) {
     this._activeConvId = id
