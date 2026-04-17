@@ -1,10 +1,10 @@
 /* ════════════════════════════════════════════════════════════════════════════
    QuRay Messenger — messenger.css
    Layout, chat bubbles, sidebar, composer, call overlay.
-   Extends the demo-shell.css design token vocabulary.
+   Mobile-first, WhatsApp/Telegram-inspired design.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Design tokens (defaults — override in :root from app) ───────────────── */
+/* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
   --qm-bg:            var(--background,   #0f1720);
   --qm-surface:       var(--surface,      #18212b);
@@ -16,10 +16,11 @@
   --qm-success:       var(--success,      #42d392);
   --qm-warning:       var(--warning,      #f6c453);
   --qm-danger:        var(--danger,       #ff7f7f);
+  --qm-mono:          ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* Bubble colors */
-  --qm-bubble-mine-bg:     rgba(103, 183, 255, 0.15);
-  --qm-bubble-mine-border: rgba(103, 183, 255, 0.28);
+  --qm-bubble-mine-bg:     rgba(103, 183, 255, 0.18);
+  --qm-bubble-mine-border: rgba(103, 183, 255, 0.30);
   --qm-bubble-their-bg:    var(--qm-surface-alt);
   --qm-bubble-their-border:var(--qm-border);
 }
@@ -49,20 +50,52 @@ qm-sidebar {
 }
 
 .qm-sidebar-header {
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--qm-border);
-  font-size: 15px;
-  font-weight: 600;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-height: 56px;
+  flex-shrink: 0;
 }
+
+.qm-sidebar-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 4px 6px;
+  transition: background 0.12s;
+}
+.qm-sidebar-me:hover { background: rgba(255,255,255,0.05); }
+
+.qm-sidebar-me-name {
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qm-sidebar-settings-btn {
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 8px; border-radius: 8px;
+  font-size: 18px; line-height: 1; min-height: 44px; min-width: 44px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s, color 0.12s; flex-shrink: 0;
+}
+.qm-sidebar-settings-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
 
 .qm-sidebar-list {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .qm-conv-row {
@@ -71,23 +104,24 @@ qm-sidebar {
   gap: 10px;
   padding: 10px 14px;
   cursor: pointer;
-  border-radius: 0;
   transition: background .12s;
   position: relative;
+  min-height: 64px;
+  -webkit-tap-highlight-color: transparent;
 }
 .qm-conv-row:hover  { background: rgba(255,255,255,.04); }
 .qm-conv-row.active { background: rgba(103,183,255,.10); }
 
 .qm-conv-info    { flex: 1; min-width: 0; }
-.qm-conv-name    { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qm-conv-preview { font-size: 12px; color: var(--qm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.qm-conv-name    { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qm-conv-preview { font-size: 13px; color: var(--qm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .qm-conv-meta    { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.qm-conv-ts      { font-size: 10px; color: var(--qm-muted); }
+.qm-conv-ts      { font-size: 11px; color: var(--qm-muted); }
 .qm-unread-badge {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; border-radius: 9px;
+  min-width: 20px; height: 20px; border-radius: 10px;
   background: var(--qm-primary); color: #fff;
-  font-size: 10px; font-weight: 700; padding: 0 4px;
+  font-size: 11px; font-weight: 700; padding: 0 5px;
 }
 .qm-unread-badge:empty,
 .qm-unread-badge[data-count="0"] { display: none; }
@@ -99,26 +133,31 @@ qm-chat {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  background: var(--qm-bg);
 }
 
 .qm-chat-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--qm-border);
   background: var(--qm-surface);
   flex-shrink: 0;
+  min-height: 56px;
 }
 .qm-chat-header-info { flex: 1; min-width: 0; }
 .qm-chat-header-name { font-size: 15px; font-weight: 600; }
-.qm-chat-header-status { font-size: 12px; color: var(--qm-muted); margin-top: 1px; }
-.qm-chat-header-actions { display: flex; gap: 8px; }
+.qm-chat-header-status { font-size: 12px; color: var(--qm-success); margin-top: 1px; }
+.qm-chat-header-actions { display: flex; gap: 4px; }
 
 .qm-chat-header-btn {
   appearance: none; border: none; background: transparent;
-  color: var(--qm-muted); cursor: pointer; padding: 6px; border-radius: 8px;
-  font-size: 18px; line-height: 1; transition: background .12s, color .12s;
+  color: var(--qm-muted); cursor: pointer; padding: 8px; border-radius: 8px;
+  font-size: 18px; line-height: 1; min-height: 44px; min-width: 44px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s;
+  -webkit-tap-highlight-color: transparent;
 }
 .qm-chat-header-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
 
@@ -131,6 +170,7 @@ qm-chat {
   flex-direction: column;
   gap: 2px;
   scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .qm-msg-list::-webkit-scrollbar { width: 6px; }
@@ -150,9 +190,7 @@ qm-chat {
   font-size: 12px; color: var(--qm-muted);
   font-style: italic;
 }
-.qm-typing-dots {
-  display: inline-flex; gap: 3px;
-}
+.qm-typing-dots { display: inline-flex; gap: 3px; }
 .qm-typing-dots span {
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--qm-muted); display: inline-block;
@@ -165,56 +203,92 @@ qm-chat {
 /* ── Composer ───────────────────────────────────────────────────────────── */
 qm-composer {
   display: block;
+  flex-shrink: 0;
 }
 
 .qm-composer-wrap {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--qm-border);
   background: var(--qm-surface);
 }
 
-.qm-composer-input {
+/* Wrapper for textarea + drop overlay */
+.qm-composer-textarea-wrap {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+.qm-composer-input {
+  display: block;
+  width: 100%;
   background: var(--qm-bg);
   color: var(--qm-text);
   border: 1px solid var(--qm-border);
-  border-radius: 20px;
-  padding: 9px 14px;
+  border-radius: 22px;
+  padding: 10px 16px;
   font: 14px/1.4 system-ui, sans-serif;
   resize: none;
   outline: none;
   max-height: 140px;
   overflow-y: auto;
   transition: border-color .15s;
+  box-sizing: border-box;
+  -webkit-appearance: none;
 }
 .qm-composer-input:focus { border-color: var(--qm-primary); }
 .qm-composer-input::placeholder { color: var(--qm-muted); }
 
+/* File drop overlay — sits on top of textarea, hidden until drag */
+.qm-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: rgba(103, 183, 255, 0.12);
+  border: 2px dashed var(--qm-primary);
+  color: var(--qm-primary);
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+.qm-drop-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .qm-composer-btn {
   appearance: none; border: none; background: transparent;
   color: var(--qm-muted); cursor: pointer; padding: 8px; border-radius: 50%;
-  font-size: 18px; line-height: 1; transition: background .12s, color .12s;
-  flex-shrink: 0;
+  font-size: 20px; line-height: 1; transition: background .12s, color .12s;
+  flex-shrink: 0; min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
 .qm-composer-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
 .qm-composer-btn.send {
-  background: rgba(103,183,255,.18); color: var(--qm-primary);
-  border-radius: 50%; width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
+  background: var(--qm-primary); color: #fff;
+  border-radius: 50%; width: 40px; height: 40px;
 }
-.qm-composer-btn.send:hover { background: rgba(103,183,255,.30); }
+.qm-composer-btn.send:hover { opacity: 0.88; }
 
-/* Staged file chips above composer */
+/* Staged file chips */
 .qm-staged-files {
   display: flex; flex-wrap: wrap; gap: 6px;
   padding: 6px 14px 0;
 }
 .qm-staged-chip {
   display: flex; align-items: center; gap: 5px;
-  padding: 4px 8px; border-radius: 8px;
+  padding: 4px 10px; border-radius: 16px;
   background: var(--qm-surface-alt); border: 1px solid var(--qm-border);
   font-size: 12px; color: var(--qm-muted);
 }
@@ -226,12 +300,8 @@ qm-composer {
 
 /* ── Call overlay ────────────────────────────────────────────────────────── */
 qm-call-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
 }
 qm-call-overlay[hidden] { display: none !important; }
 
@@ -240,39 +310,27 @@ qm-call-overlay[hidden] { display: none !important; }
   background: rgba(0,0,0,.72);
   backdrop-filter: blur(8px);
 }
-
 .qm-call-dialog {
-  position: relative;
-  z-index: 1;
-  width: min(380px, 94vw);
-  border-radius: 24px;
-  border: 1px solid var(--qm-border);
-  background: var(--qm-surface);
+  position: relative; z-index: 1;
+  width: min(380px, 94vw); border-radius: 24px;
+  border: 1px solid var(--qm-border); background: var(--qm-surface);
   padding: 32px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; text-align: center;
 }
-
-.qm-call-state-label {
-  font-size: 13px; color: var(--qm-muted); letter-spacing: .06em; text-transform: uppercase;
-}
-.qm-call-peer-name { font-size: 22px; font-weight: 600; }
-.qm-call-duration  { font-size: 14px; color: var(--qm-muted); font-variant-numeric: tabular-nums; }
-.qm-call-video-row {
-  display: flex; gap: 10px; width: 100%; justify-content: center;
-}
+.qm-call-state-label { font-size: 13px; color: var(--qm-muted); letter-spacing: .06em; text-transform: uppercase; }
+.qm-call-peer-name   { font-size: 22px; font-weight: 600; }
+.qm-call-duration    { font-size: 14px; color: var(--qm-muted); font-variant-numeric: tabular-nums; }
+.qm-call-video-row   { display: flex; gap: 10px; width: 100%; justify-content: center; }
 .qm-call-video {
   width: 120px; height: 90px; border-radius: 12px;
   background: #000; object-fit: cover; display: none;
 }
 .qm-call-video.active { display: block; }
 .qm-call-video.local-preview {
-  width: 80px; height: 60px; border-radius: 8px; position: absolute; bottom: 96px; right: 16px;
+  width: 80px; height: 60px; border-radius: 8px;
+  position: absolute; bottom: 96px; right: 16px;
 }
-
 .qm-call-actions { display: flex; gap: 16px; justify-content: center; margin-top: 8px; }
 .qm-call-action-btn {
   width: 56px; height: 56px; border-radius: 50%;
@@ -280,15 +338,13 @@ qm-call-overlay[hidden] { display: none !important; }
   display: flex; align-items: center; justify-content: center;
   transition: transform .12s, opacity .12s;
 }
-.qm-call-action-btn:hover { transform: scale(1.08); }
+.qm-call-action-btn:hover  { transform: scale(1.08); }
 .qm-call-action-btn:active { transform: scale(.96); }
 .qm-call-action-btn.accept  { background: rgba(66,211,146,.25); }
 .qm-call-action-btn.decline { background: rgba(255,127,127,.25); }
 .qm-call-action-btn.hangup  { background: rgba(255,127,127,.25); }
 .qm-call-action-btn.mute    { background: rgba(103,183,255,.15); }
 .qm-call-action-btn.camera  { background: rgba(103,183,255,.15); }
-
-/* ringing pulse on avatar */
 .qm-call-avatar-wrap {
   position: relative; display: flex; align-items: center; justify-content: center;
 }
@@ -303,43 +359,270 @@ qm-call-overlay[hidden] { display: none !important; }
 
 /* ── Empty state ────────────────────────────────────────────────────────── */
 .qm-empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: var(--qm-muted);
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; color: var(--qm-muted);
 }
 .qm-empty-state-icon { font-size: 48px; opacity: .5; }
 .qm-empty-state-text { font-size: 15px; }
 
-/* ── Mobile responsive ──────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  qm-app {
-    position: relative;
-  }
-  qm-sidebar {
-    position: absolute;
-    inset: 0;
-    z-index: 10;
-    width: 100%;
-    max-width: 100%;
-    transform: translateX(0);
-    transition: transform .2s ease;
-  }
-  qm-sidebar.hidden-mobile {
-    transform: translateX(-100%);
-    pointer-events: none;
-  }
-  qm-chat {
-    position: absolute;
-    inset: 0;
-  }
-  .qm-chat-back-btn { display: flex !important; }
+/* ── View panel (profile / settings / new-chat) ─────────────────────────── */
+.qm-view-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--qm-border);
+  background: var(--qm-surface);
+  flex-shrink: 0;
+  min-height: 56px;
 }
+.qm-view-header-title {
+  flex: 1; font-size: 16px; font-weight: 600;
+}
+.qm-view-back-btn {
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 6px; border-radius: 8px;
+  font-size: 24px; line-height: 1; min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s; -webkit-tap-highlight-color: transparent;
+}
+.qm-view-back-btn:hover { background: rgba(255,255,255,.07); color: var(--qm-text); }
+
+.qm-view-body {
+  flex: 1; overflow-y: auto; padding: 20px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Profile avatar section */
+.qm-profile-avatar-section {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 20px 0 24px;
+}
+.qm-profile-avatar-wrap {
+  position: relative; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.qm-profile-avatar-wrap::after {
+  content: '✏️';
+  position: absolute; bottom: 0; right: 0;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--qm-primary); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; border: 2px solid var(--qm-surface);
+}
+.qm-profile-alias-display {
+  font-size: 18px; font-weight: 600; text-align: center;
+}
+
+/* Pub-key display row */
+.qm-profile-pub-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px;
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: var(--qm-mono);
+  color: var(--qm-muted);
+  word-break: break-all;
+}
+.qm-profile-pub-text {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qm-profile-copy-btn {
+  appearance: none; border: none; background: transparent;
+  color: var(--qm-muted); cursor: pointer; padding: 4px 6px; border-radius: 4px;
+  font-size: 14px; flex-shrink: 0;
+  transition: color 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.qm-profile-copy-btn:hover { color: var(--qm-primary); }
+
+/* Form fields in views */
+.qm-view-field {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px;
+}
+.qm-view-label {
+  font-size: 11px; font-weight: 700; color: var(--qm-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.qm-view-input {
+  background: var(--qm-bg);
+  color: var(--qm-text);
+  border: 1px solid var(--qm-border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font: 14px/1.4 system-ui, sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+.qm-view-input:focus { border-color: var(--qm-primary); }
+.qm-view-input[readonly] { opacity: 0.55; cursor: default; }
+.qm-view-btn {
+  display: block; width: 100%; padding: 12px;
+  background: rgba(103,183,255,.15);
+  color: var(--qm-primary);
+  border: 1px solid rgba(103,183,255,.35);
+  border-radius: 10px;
+  font: 600 14px/1 system-ui, sans-serif;
+  cursor: pointer; text-align: center;
+  transition: background .12s, opacity .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.qm-view-btn:hover { background: rgba(103,183,255,.25); }
+.qm-view-btn:active { opacity: 0.8; }
+
+/* Settings item row */
+.qm-settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid var(--qm-border);
+  gap: 12px;
+}
+.qm-settings-row:last-child { border-bottom: none; }
+.qm-settings-row-label { font-size: 14px; font-weight: 500; }
+.qm-settings-section-title {
+  font-size: 11px; font-weight: 700; color: var(--qm-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 16px 0 6px;
+}
+
+/* Peers list in new-chat */
+.qm-peers-list {
+  margin: 0 0 16px;
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 13px;
+  -webkit-overflow-scrolling: touch;
+}
+.qm-peer-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--qm-border);
+  transition: background .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.qm-peer-row:last-child { border-bottom: none; }
+.qm-peer-row:hover { background: rgba(255,255,255,.04); }
+.qm-peer-row.selected { background: rgba(103,183,255,.12); }
+.qm-peer-row-name { font-weight: 500; font-size: 14px; }
+.qm-peer-row-pub { font-size: 11px; color: var(--qm-muted); font-family: var(--qm-mono); }
+
+/* ── Bottom navigation bar (mobile) ─────────────────────────────────────── */
+.qm-bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--qm-surface);
+  border-top: 1px solid var(--qm-border);
+  z-index: 200;
+  flex-direction: column;
+}
+.qm-bottom-nav-inner {
+  display: flex;
+  align-items: stretch;
+  height: 54px;
+}
+.qm-bottom-nav-pad {
+  height: env(safe-area-inset-bottom);
+  background: var(--qm-surface);
+}
+.qm-bottom-nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; border: none; background: transparent; color: var(--qm-muted);
+  cursor: pointer; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  min-height: 54px; transition: color 0.15s; text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+}
+.qm-bottom-nav-btn.active { color: var(--qm-primary); }
+.qm-bottom-nav-icon { font-size: 22px; line-height: 1; margin-bottom: 1px; }
+
+/* back button in chat header — hidden on desktop */
 .qm-chat-back-btn {
   display: none;
   appearance: none; border: none; background: transparent;
-  color: var(--qm-muted); cursor: pointer; padding: 6px 2px; font-size: 20px; line-height: 1;
+  color: var(--qm-muted); cursor: pointer; padding: 6px 4px; font-size: 24px; line-height: 1;
+  min-width: 44px; min-height: 44px; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Mobile responsive (≤768px) ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Bottom nav visible */
+  .qm-bottom-nav { display: flex; }
+
+  /* Back button in chat header */
+  .qm-chat-back-btn { display: flex !important; }
+
+  /* Each view takes the full screen via absolute stacking */
+  qm-sidebar,
+  #app-right {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border-right: none !important;
+    /* Default: both off-screen */
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+    z-index: 10;
+  }
+
+  #app-right {
+    transform: translateX(100%);
+    z-index: 11;
+  }
+
+  /* Active view slides to center */
+  qm-sidebar.view-active,
+  #app-right.view-active {
+    transform: translateX(0) !important;
+  }
+
+  /* Panel views (profile/settings/new-chat) slide from right */
+  .qm-panel-view {
+    position: fixed !important;
+    inset: 0 !important;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+    z-index: 50;
+    display: flex !important;
+    flex-direction: column;
+    background: var(--qm-bg);
+  }
+  .qm-panel-view.view-active {
+    transform: translateX(0) !important;
+  }
+
+  /* Extra bottom padding for bottom nav */
+  .qm-msg-list {
+    padding-bottom: calc(16px + 54px + env(safe-area-inset-bottom));
+  }
+  .qm-composer-wrap {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  /* Topbar hidden on mobile — each view has its own header */
+  .chat-topbar { display: none; }
+}
+
+/* ── Desktop (>768px): panel views as right drawer ──────────────────────── */
+@media (min-width: 769px) {
+  .qm-panel-view {
+    display: none;
+    flex-direction: column;
+    width: 320px;
+    border-left: 1px solid var(--qm-border);
+    background: var(--qm-surface);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .qm-panel-view.view-active {
+    display: flex !important;
+  }
 }
