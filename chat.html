@@ -485,6 +485,13 @@ async function boot(relayUrl, alias) {
       if (path === '/new-chat') loadPeersList()
     })
 
+    // ── Reactive user directory: reload when peer map changes ───────────
+    qr.peers.onChange(() => {
+      // Only refresh the list if the new-chat view is currently visible
+      if (currentView === 'view-new-chat') loadPeersList()
+      else _allKnownPeers = []   // invalidate cache so next open is fresh
+    })
+
     // ── Show app ────────────────────────────────────────────────────────
     screenLoading.hidden = true
     appScreen.hidden = false
