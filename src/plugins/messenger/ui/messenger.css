@@ -507,6 +507,14 @@ qm-call-overlay[hidden] { display: none !important; }
   padding: 16px 0 6px;
 }
 
+/* Peers search input */
+.qm-peers-search {
+  padding: 9px 14px;
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Peers list in new-chat */
 .qm-peers-list {
   margin: 0 0 16px;

@@ -132,8 +132,11 @@ qm-composer { flex-shrink: 0; }
 <div id="screen-setup" hidden>
   <div class="setup-form">
     <h2>QuRay Chat</h2>
-    <p>Sichere P2P Kommunikation. Geben Sie Ihren Namen und die Relay-URL ein.</p>
-    <input id="setup-alias" type="text" placeholder="Ihr Name" autocomplete="nickname">
+    <p id="setup-tagline">Sichere P2P Kommunikation.</p>
+    <div id="setup-welcome" hidden style="background:rgba(103,183,255,.1);border:1px solid rgba(103,183,255,.3);border-radius:8px;padding:10px 14px;font-size:14px;color:var(--primary)"></div>
+    <div id="setup-alias-row">
+      <input id="setup-alias" type="text" placeholder="Ihr Name" autocomplete="nickname">
+    </div>
     <input id="setup-relay" type="text" placeholder="Relay URL (z.B. wss://example.com)" autocomplete="off">
     <div id="setup-error" hidden style="color:var(--danger,#ff7f7f);font-size:13px;padding:4px 2px;word-break:break-word"></div>
     <button id="setup-btn" type="button">Verbinden</button>
@@ -174,8 +177,9 @@ qm-composer { flex-shrink: 0; }
   </div>
   <div class="qm-view-body">
     <div class="qm-profile-avatar-section">
-      <div class="qm-profile-avatar-wrap" id="profile-avatar-wrap" title="Avatar ändern">
-        <qu-avatar id="profile-avatar" size="80" shape="circle"></qu-avatar>
+      <div class="qm-profile-avatar-wrap" id="profile-avatar-wrap" title="Klicken zum Ändern">
+        <!-- slot: recreated with correct pub each time profile opens -->
+        <div id="profile-avatar-slot" style="width:80px;height:80px;border-radius:50%;overflow:hidden"></div>
         <input id="profile-avatar-input" type="file" accept="image/*" style="display:none">
       </div>
       <div class="qm-profile-alias-display" id="profile-alias-display"></div>
@@ -229,6 +233,15 @@ qm-composer { flex-shrink: 0; }
       </select>
     </div>
 
+    <div class="qm-settings-section-title" style="margin-top:8px">Datenschutz</div>
+    <div class="qm-settings-row">
+      <label class="qm-settings-row-label" for="settings-visibility" style="cursor:pointer">Im Nutzerverzeichnis</label>
+      <select id="settings-visibility" class="qm-settings-push-select">
+        <option value="hidden">Nicht sichtbar</option>
+        <option value="public">Öffentlich</option>
+      </select>
+    </div>
+
     <div style="margin-top:24px">
       <button class="qm-view-btn" id="settings-close-btn">Schließen</button>
     </div>
@@ -243,18 +256,21 @@ qm-composer { flex-shrink: 0; }
   </div>
   <div class="qm-view-body">
     <div class="qm-view-field">
-      <label class="qm-view-label" for="new-chat-pub-input">Öffentlicher Schlüssel</label>
-      <input class="qm-view-input" id="new-chat-pub-input" type="text" placeholder="Pub-Key eingeben…" autocomplete="off" spellcheck="false">
+      <label class="qm-view-label" for="new-chat-pub-input">Pub-Key direkt eingeben</label>
+      <input class="qm-view-input" id="new-chat-pub-input" type="text" placeholder="MFkw… (base64url)" autocomplete="off" spellcheck="false">
     </div>
+    <button class="qm-view-btn" id="new-chat-confirm-btn">Chat starten</button>
 
-    <div class="qm-settings-section-title">Online-Nutzer</div>
+    <div class="qm-settings-section-title" style="margin-top:20px">Nutzerverzeichnis</div>
+    <input class="qm-view-input qm-peers-search" id="peers-search" type="text"
+      placeholder="Nach Name oder Pub-Key suchen…" autocomplete="off" spellcheck="false"
+      style="margin-bottom:10px">
     <div class="qm-peers-list" id="peers-online-list">
-      <div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">
-        Mit Relay verbinden um Nutzer zu sehen…
-      </div>
+      <div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Lade…</div>
     </div>
-
-    <button class="qm-view-btn" id="new-chat-confirm-btn" style="margin-top:8px">Chat starten</button>
+    <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0 0">
+      Nur Nutzer mit öffentlichem Profil werden angezeigt.
+    </p>
   </div>
 </div>
 
@@ -496,15 +512,27 @@ async function boot(relayUrl, alias) {
 
 function populateProfileView() {
   if (!qr) return
-  const aliasInput    = document.getElementById('profile-alias-input')
-  const pubDisplay    = document.getElementById('profile-pub-display')
-  const aliasDisplay  = document.getElementById('profile-alias-display')
-  const avatarEl      = document.getElementById('profile-avatar')
+  const aliasInput   = document.getElementById('profile-alias-input')
+  const pubDisplay   = document.getElementById('profile-pub-display')
+  const aliasDisplay = document.getElementById('profile-alias-display')
 
-  if (aliasInput)   aliasInput.value    = qr.me.alias || ''
-  if (pubDisplay)   pubDisplay.textContent = qr.me.pub
+  if (aliasInput)   aliasInput.value       = qr.me.alias || ''
+  if (pubDisplay)   pubDisplay.textContent  = qr.me.pub
   if (aliasDisplay) aliasDisplay.textContent = qr.me.alias || qr.me.pub.slice(0, 16) + '…'
-  if (avatarEl)     avatarEl.setAttribute('pub', qr.me.pub)
+
+  // Recreate qu-avatar fresh each open so _quInit fires with the correct pub.
+  // (Static HTML elements upgrade before pub is known, so setAttribute alone
+  //  doesn't trigger a re-subscribe.)
+  const slot = document.getElementById('profile-avatar-slot')
+  if (slot) {
+    const av = document.createElement('qu-avatar')
+    av.setAttribute('pub', qr.me.pub)
+    av.setAttribute('size', '80')
+    av.setAttribute('shape', 'circle')
+    av.id = 'profile-avatar'
+    slot.innerHTML = ''
+    slot.appendChild(av)
+  }
 }
 
 document.getElementById('profile-avatar-wrap').addEventListener('click', () => {
@@ -576,7 +604,7 @@ document.getElementById('profile-back-btn').addEventListener('click', () => navi
 
 // ── Settings view ─────────────────────────────────────────────────────────
 
-function populateSettingsView() {
+async function populateSettingsView() {
   if (!qr) return
   const relayUrl = localStorage.getItem('qr_relay_url') || ''
   document.getElementById('settings-relay-display').textContent = relayUrl
@@ -584,10 +612,18 @@ function populateSettingsView() {
     qr.relays.length ? `${qr.relays.length} verbunden` : 'Getrennt'
   document.getElementById('settings-id-display').textContent =
     qr.me.pub.slice(0, 20) + '…'
-  // Restore saved push level
+
   const pushLevel = localStorage.getItem('qr_push_level') || 'off'
   const pushSelect = document.getElementById('settings-push-level')
   if (pushSelect) pushSelect.value = pushLevel
+
+  // Visibility: read from user node
+  try {
+    const q = await qr.db.get(`~${qr.me.pub}/status`)
+    const vis = q?.data ?? 'hidden'
+    const visEl = document.getElementById('settings-visibility')
+    if (visEl) visEl.value = vis
+  } catch (_) {}
 }
 
 document.getElementById('settings-back-btn').addEventListener('click', () => navigateTo('/'))
@@ -601,70 +637,126 @@ document.getElementById('settings-push-level').addEventListener('change', async 
   }
 })
 
-// ── New Chat view ─────────────────────────────────────────────────────────
-
-async function loadPeersList() {
-  const list = document.getElementById('peers-online-list')
-  if (!qr) return
-  list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Lade…</div>'
-
-  if (!qr.relays?.length) {
-    list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Nicht mit Relay verbunden</div>'
-    return
-  }
-  try {
-    const relay   = qr.relays[0]
-    const httpUrl = relay.url.replace(/^ws/, 'http')
-    const res     = await fetch(`${httpUrl}/api/peers`)
-    const data    = await res.json()
-    const peers   = (data.peers || []).filter(p => p.pub !== qr.me.pub)
-
-    if (!peers.length) {
-      list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Keine anderen Online-Nutzer</div>'
-      return
-    }
-
-    list.innerHTML = peers.map(p => `
-      <div class="qm-peer-row" data-pub="${p.pub}">
-        <qu-avatar pub="${p.pub}" size="36" shape="circle"></qu-avatar>
-        <div>
-          <div class="qm-peer-row-name">${p.alias || 'Unbekannt'}</div>
-          <div class="qm-peer-row-pub">${p.pub.slice(0, 20)}…</div>
-        </div>
-      </div>
-    `).join('')
-
-    list.querySelectorAll('.qm-peer-row').forEach(row => {
-      row.addEventListener('click', () => {
-        document.getElementById('new-chat-pub-input').value = row.dataset.pub
-        list.querySelectorAll('.qm-peer-row').forEach(r => r.classList.remove('selected'))
-        row.classList.add('selected')
-      })
-    })
-  } catch (err) {
-    list.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">Fehler: ${err.message}</div>`
-  }
-}
-
-document.getElementById('new-chat-confirm-btn').addEventListener('click', async () => {
-  if (!messenger) return
-  const pub = document.getElementById('new-chat-pub-input').value.trim()
-  if (!pub) return
-  try {
-    await messenger.store.addContact(pub, { alias: pub.slice(0, 12) + '…' })
-    const convId = await messenger.store.getOrCreateDM(pub)
-    document.getElementById('new-chat-pub-input').value = ''
-    navigateTo('/')
-    // Select the new conversation
-    setTimeout(() => {
-      document.dispatchEvent(new CustomEvent('qm-conv-select', { detail: { convId } }))
-    }, isMobile() ? 300 : 0)
-  } catch (err) {
-    alert('Fehler: ' + err.message)
+document.getElementById('settings-visibility').addEventListener('change', async (e) => {
+  if (qr) {
+    try { await qr.node.user.setVisibility(e.target.value) } catch (_) {}
   }
 })
 
+// ── New Chat view ─────────────────────────────────────────────────────────
+
+let _allKnownPeers = []
+
+async function loadPeersList() {
+  if (!qr) return
+
+  // 1. Start from reactive PeerMap (includes peers synced from relay + DB)
+  const byPub = new Map()
+  for (const p of (qr.peers?.all ?? [])) {
+    if (p.pub === qr.me.pub) continue
+    byPub.set(p.pub, { pub: p.pub, alias: p.alias || null, online: p.online, epub: p.epub })
+  }
+
+  // 2. Also query local DB for any ~{pub}/alias entries not yet in PeerMap
+  try {
+    const rows = await qr.db.query('~')
+    for (const q of rows) {
+      const m = q.key.match(/^~([^/]+)\/alias$/)
+      if (!m) continue
+      const pub = m[1]
+      if (pub === qr.me.pub) continue
+      if (!byPub.has(pub)) {
+        byPub.set(pub, { pub, alias: q.data || null, online: false, epub: null })
+      } else if (!byPub.get(pub).alias && q.data) {
+        byPub.get(pub).alias = q.data
+      }
+    }
+  } catch (_) {}
+
+  _allKnownPeers = [...byPub.values()].sort((a, b) => {
+    if (a.online !== b.online) return (b.online ? 1 : 0) - (a.online ? 1 : 0)
+    return (a.alias || '').localeCompare(b.alias || '')
+  })
+
+  renderFilteredPeers()
+}
+
+function renderFilteredPeers() {
+  const list    = document.getElementById('peers-online-list')
+  const query   = (document.getElementById('peers-search')?.value || '').toLowerCase()
+  if (!list) return
+
+  const peers = query
+    ? _allKnownPeers.filter(p => (p.alias || p.pub).toLowerCase().includes(query))
+    : _allKnownPeers
+
+  if (!peers.length) {
+    list.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">
+      ${_allKnownPeers.length ? 'Keine Treffer' : 'Noch keine bekannten Nutzer.<br>Pub-Key direkt eingeben oder mit Relay verbinden.'}
+    </div>`
+    return
+  }
+
+  list.innerHTML = peers.map(p => `
+    <div class="qm-peer-row" data-pub="${p.pub}">
+      <qu-avatar pub="${p.pub}" size="36" shape="circle"></qu-avatar>
+      <div style="flex:1;min-width:0">
+        <div class="qm-peer-row-name">${p.alias ? _esc(p.alias) : 'Unbekannt'}</div>
+        <div class="qm-peer-row-pub">${p.pub.slice(0, 22)}…</div>
+      </div>
+      ${p.online ? '<span style="color:var(--success,#42d392);font-size:10px;font-weight:700;flex-shrink:0">● Online</span>' : ''}
+    </div>
+  `).join('')
+
+  list.querySelectorAll('.qm-peer-row').forEach(row => {
+    row.addEventListener('click', () => {
+      document.getElementById('new-chat-pub-input').value = row.dataset.pub
+      list.querySelectorAll('.qm-peer-row').forEach(r => r.classList.remove('selected'))
+      row.classList.add('selected')
+    })
+    row.addEventListener('dblclick', () => startChatWith(row.dataset.pub))
+  })
+}
+
+const _esc = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+
+async function startChatWith(pub) {
+  if (!messenger || !pub) return
+  const btn = document.getElementById('new-chat-confirm-btn')
+  const origText = btn?.textContent
+  if (btn) btn.textContent = '…'
+  try {
+    // Look up alias from known peers
+    const known = _allKnownPeers.find(p => p.pub === pub)
+    const alias = known?.alias || pub.slice(0, 12) + '…'
+    await messenger.store.addContact(pub, { alias })
+    const convId = await messenger.store.getOrCreateDM(pub)
+    document.getElementById('new-chat-pub-input').value = ''
+    navigateTo('/')
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('qm-conv-select', { detail: { convId } }))
+    }, isMobile() ? 320 : 0)
+  } catch (err) {
+    console.error('[NewChat] startChatWith failed:', err)
+    const errEl = document.createElement('div')
+    errEl.style.cssText = 'color:var(--danger,#ff7f7f);font-size:13px;padding:6px;text-align:center'
+    errEl.textContent = 'Fehler: ' + err.message
+    document.getElementById('peers-online-list')?.prepend(errEl)
+    setTimeout(() => errEl.remove(), 4000)
+  } finally {
+    if (btn) btn.textContent = origText
+  }
+}
+
+document.getElementById('new-chat-confirm-btn').addEventListener('click', () => {
+  const pub = document.getElementById('new-chat-pub-input').value.trim()
+  if (!pub) return
+  startChatWith(pub)
+})
+
 document.getElementById('new-chat-back-btn').addEventListener('click', () => navigateTo('/'))
+
+document.getElementById('peers-search').addEventListener('input', renderFilteredPeers)
 
 // ── Desktop topbar buttons ────────────────────────────────────────────────
 
@@ -713,8 +805,15 @@ document.getElementById('nav-btn-settings').addEventListener('click', () => navi
 
 setupBtn.onclick = async () => {
   const relay = setupRelay.value.trim()
-  const alias = setupAlias.value.trim()
-  if (!relay) { alert('Bitte Relay URL eingeben'); return }
+  const alias = document.getElementById('setup-alias-row')?.hidden
+    ? (getSavedIdentityAlias() || '')
+    : setupAlias.value.trim()
+  if (!relay) {
+    const errEl = document.getElementById('setup-error')
+    if (errEl) { errEl.textContent = 'Bitte Relay URL eingeben'; errEl.hidden = false }
+    return
+  }
+  document.getElementById('setup-error').hidden = true
   await boot(relay, alias)
 }
 setupRelay.addEventListener('keydown', e => { if (e.key === 'Enter') setupBtn.click() })
@@ -734,16 +833,43 @@ function defaultRelayUrl() {
   return `${proto}://${location.host}`
 }
 
+// Try to read alias from the saved identity backup (stored by QuRay in localStorage).
+// The backup is JSON-serialised as { pub, epub, alias, signPriv, encPriv }.
+function getSavedIdentityAlias() {
+  try {
+    const raw = localStorage.getItem('qr_identity')
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    return d?.alias || d?.data?.alias || null
+  } catch (_) { return null }
+}
+
 // ── Auto-boot from localStorage ───────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('qr_relay_url')
-  const alias = localStorage.getItem('qr_alias') || ''
-  // Always pre-fill the form (so user sees what URL will be used)
-  setupRelay.value = saved || defaultRelayUrl()
-  setupAlias.value = alias
-  if (saved) {
-    boot(saved, alias)
+  const savedRelay = localStorage.getItem('qr_relay_url')
+  const savedAlias = getSavedIdentityAlias() || localStorage.getItem('qr_alias') || ''
+
+  setupRelay.value = savedRelay || defaultRelayUrl()
+
+  const aliasRow    = document.getElementById('setup-alias-row')
+  const welcomeEl   = document.getElementById('setup-welcome')
+  const taglineEl   = document.getElementById('setup-tagline')
+
+  if (savedAlias) {
+    // Returning user — hide alias input, show welcome message
+    if (aliasRow)  aliasRow.hidden  = true
+    if (welcomeEl) {
+      welcomeEl.textContent = `Willkommen zurück, ${savedAlias} 👋`
+      welcomeEl.hidden = false
+    }
+    if (taglineEl) taglineEl.hidden = true
+  } else {
+    setupAlias.value = ''
+  }
+
+  if (savedRelay) {
+    boot(savedRelay, savedAlias)
   } else {
     screenLoading.hidden = true
     screenSetup.hidden = false
