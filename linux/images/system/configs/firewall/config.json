@@ -1,0 +1,32 @@
+{
+  "ociVersion": "1.0.2",
+  "process": {
+    "terminal": false,
+    "user": { "uid": 0, "gid": 0 },
+    "args": ["/firewall/rules.sh"],
+    "env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    ],
+    "cwd": "/",
+    "capabilities": {
+      "bounding":  ["CAP_NET_ADMIN","CAP_NET_RAW"],
+      "effective": ["CAP_NET_ADMIN","CAP_NET_RAW"],
+      "permitted": ["CAP_NET_ADMIN","CAP_NET_RAW"],
+      "ambient":   []
+    }
+  },
+  "root": { "path": "rootfs" },
+  "mounts": [
+    { "destination": "/proc", "type": "proc",     "source": "proc" },
+    { "destination": "/dev",  "type": "devtmpfs", "source": "devtmpfs" },
+    { "destination": "/sys",  "type": "bind",     "source": "/sys",
+      "options": ["rbind","ro"] }
+  ],
+  "linux": {
+    "namespaces": [
+      { "type": "mount" },
+      { "type": "uts" },
+      { "type": "ipc" }
+    ]
+  }
+}

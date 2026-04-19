@@ -1,0 +1,12 @@
+Port 22
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile /data/ssh/authorized_keys
+PermitRootLogin prohibit-password
+HostKey /data/ssh/ssh_host_ed25519_key
+HostKey /data/ssh/ssh_host_rsa_key
+UsePAM no
+PrintLastLog no
+ClientAliveInterval 30
+ClientAliveCountMax 3
+Subsystem sftp /usr/lib/ssh/sftp-server

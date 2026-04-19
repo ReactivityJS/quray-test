@@ -1,0 +1,3 @@
+# Hier SSH-Public-Keys eintragen, eine Zeile pro Key
+# Beispiel:
+# ssh-ed25519 AAAA... user@host

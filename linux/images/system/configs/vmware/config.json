@@ -1,0 +1,34 @@
+{
+  "ociVersion": "1.0.2",
+  "process": {
+    "terminal": false,
+    "user": { "uid": 0, "gid": 0 },
+    "args": ["/usr/bin/vmtoolsd"],
+    "env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "VMTOOLS_USER_AGENT=open-vm-tools"
+    ],
+    "cwd": "/",
+    "capabilities": {
+      "bounding":  ["CAP_SYS_ADMIN","CAP_SYS_RAWIO","CAP_MKNOD","CAP_NET_ADMIN","CAP_DAC_READ_SEARCH","CAP_SYS_PTRACE"],
+      "effective": ["CAP_SYS_ADMIN","CAP_SYS_RAWIO","CAP_MKNOD","CAP_NET_ADMIN","CAP_DAC_READ_SEARCH","CAP_SYS_PTRACE"],
+      "permitted": ["CAP_SYS_ADMIN","CAP_SYS_RAWIO","CAP_MKNOD","CAP_NET_ADMIN","CAP_DAC_READ_SEARCH","CAP_SYS_PTRACE"],
+      "ambient":   []
+    }
+  },
+  "root": { "path": "rootfs" },
+  "mounts": [
+    { "destination": "/proc", "type": "bind", "source": "/proc",
+      "options": ["rbind"] },
+    { "destination": "/sys",  "type": "bind", "source": "/sys",
+      "options": ["rbind"] },
+    { "destination": "/dev",  "type": "bind", "source": "/dev",
+      "options": ["rbind"] },
+    { "destination": "/run",  "type": "tmpfs","source": "tmpfs" }
+  ],
+  "linux": {
+    "namespaces": [
+      { "type": "mount" }
+    ]
+  }
+}

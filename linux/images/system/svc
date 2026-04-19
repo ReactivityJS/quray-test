@@ -1,0 +1,85 @@
+#!/bin/sh
+# svc start|stop|restart|status|log|list <name>
+SVC_DIR=/run/svc
+CTR_DIR=/run/containers
+
+action="${1:-}"; name="${2:-}"
+
+_require_name() {
+    [ -n "$name" ] || { echo "Usage: svc $action <name>"; exit 1; }
+    [ -d "$CTR_DIR/$name" ] || { echo "Unknown service: $name (no bundle at $CTR_DIR/$name)"; exit 1; }
+}
+
+_status() {
+    local pid state
+    pid=$(cat "$SVC_DIR/$name.pid" 2>/dev/null)
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        state=$(crun state "$name" 2>/dev/null \
+            | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+        echo "$name: running  (supervise=$pid  container=$state)"
+    else
+        echo "$name: stopped"
+    fi
+}
+
+_stop() {
+    local pid
+    pid=$(cat "$SVC_DIR/$name.pid" 2>/dev/null)
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+    sleep 1
+    crun kill "$name" TERM 2>/dev/null || true
+    sleep 1
+    crun delete -f "$name" 2>/dev/null || true
+    rm -f "$SVC_DIR/$name.pid"
+    echo "$name: stopped"
+}
+
+_start() {
+    local bundle="$CTR_DIR/$name"
+    (while true; do
+        crun run --bundle "$bundle" "$name" >>"$SVC_DIR/$name.log" 2>&1 || true
+        crun delete -f "$name" 2>/dev/null || true
+        sleep 1
+    done) &
+    echo $! >"$SVC_DIR/$name.pid"
+    echo "$name: started"
+}
+
+case "$action" in
+    status)
+        _require_name
+        _status
+        ;;
+    start)
+        _require_name
+        _start
+        ;;
+    stop)
+        _require_name
+        _stop
+        ;;
+    restart)
+        _require_name
+        _stop
+        sleep 1
+        _start
+        ;;
+    log)
+        _require_name
+        tail -f "$SVC_DIR/$name.log"
+        ;;
+    list)
+        found=0
+        for f in "$SVC_DIR"/*.pid; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f" .pid)
+            _status
+            found=1
+        done
+        [ "$found" -eq 0 ] && echo "No services running"
+        ;;
+    *)
+        echo "Usage: svc start|stop|restart|status|log|list <name>"
+        exit 1
+        ;;
+esac
