@@ -1,7 +1,7 @@
 kernel:
   image: linuxkit/kernel:6.6.13
-  cmdline: "console=ttyS0 quiet rootwait"
+  # ttyS0 für serielle Konsole (QEMU/PXE), tty0 für VGA (VMware/ISO)
+  cmdline: "console=ttyS0 console=tty0 quiet rootwait"
 
 init:
-  # Einziges init-Layer: busybox + containerd + nerdctl + crun + Scripts
   - local/system:1.0

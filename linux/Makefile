@@ -1,32 +1,66 @@
 LINUXKIT ?= linuxkit
 OUT      := output
 SYS_DIR  := images/system
+LK_NAME  := $(OUT)/lk
+LK_ARGS  := --docker --name $(LK_NAME) linuxkit.yml
 
-# Service-Images (werden NICHT in die initrd eingebettet –
-# containerd pullt/lädt sie beim ersten Boot)
 SERVICE_IMAGES := sshd ntp vmware firewall user-docker
 
-.PHONY: all build-system build-os stage-images provision-state qemu clean
+.PHONY: all build-system \
+        build-kernel build-iso build-efi build-vmware build-qcow2 build-vhd \
+        build-all \
+        build-services stage-images \
+        provision-state run-qemu run-vmware \
+        push clean
 
-all: build-os
+# ── Standardziel: alle relevanten Formate ────────────────────────────────────
+all: build-all
 
-# System-Image bauen (enthält busybox + containerd + nerdctl + Scripts)
+# ── System-Docker-Image (Basis für alle Formate) ─────────────────────────────
 build-system:
 	docker build -t local/system:1.0 $(SYS_DIR)/
 
-# OS-Image bauen → output/lk-kernel + output/lk-initrd.img
-build-os: build-system
+# ── LinuxKit-Formate (einzeln) ───────────────────────────────────────────────
+build-kernel: build-system
 	mkdir -p $(OUT)
-	$(LINUXKIT) build --docker --format kernel+initrd \
-	    --name $(OUT)/lk linuxkit.yml
+	$(LINUXKIT) build $(LK_ARGS) --format kernel+initrd
 
-# Service-Images bauen (für die eigenen Services sshd, ntp, vmware, firewall)
+build-iso: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) --format iso-bios
+
+build-efi: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) --format iso-efi
+
+build-vmware: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) --format vmware
+
+build-qcow2: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) --format qcow2
+
+build-vhd: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) --format vhd
+
+# ── Alle Formate in einem Durchlauf ─────────────────────────────────────────
+# Erzeugt: lk-kernel, lk-initrd.img, lk.iso (BIOS+EFI), lk.vmdk, lk.qcow2
+build-all: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build $(LK_ARGS) \
+	    --format kernel+initrd \
+	    --format iso-bios \
+	    --format iso-efi \
+	    --format vmware \
+	    --format qcow2
+
+# ── Service-Images bauen + als TARs bereitstellen (Offline-Bootstrap) ────────
 build-services:
 	$(foreach s,$(SERVICE_IMAGES), \
 	    docker build -t local/$(s):1.0 images/$(s)/;)
 
-# Service-Images als TARs speichern (für Offline-Bootstrap via /data/images/)
-# → TARs auf den Host kopieren: scp output/images/*.tar root@host:/data/images/
 stage-images: build-services
 	mkdir -p $(OUT)/images
 	$(foreach s,$(SERVICE_IMAGES), \
@@ -34,10 +68,10 @@ stage-images: build-services
 	docker pull docker:26-dind
 	docker save docker:26-dind -o $(OUT)/images/user-docker.tar
 	@echo ""
-	@echo "TARs gespeichert in $(OUT)/images/"
-	@echo "Auf den Host kopieren: scp $(OUT)/images/*.tar root@HOST:/data/images/"
+	@echo "TARs in $(OUT)/images/ – auf den Host kopieren:"
+	@echo "  scp $(OUT)/images/*.tar root@HOST:/data/images/"
 
-# State-Disk anlegen (4 GB ext4, einmalig)
+# ── State-Disk (einmalig für lokale Tests) ───────────────────────────────────
 provision-state:
 	mkdir -p $(OUT)
 	dd if=/dev/zero of=$(OUT)/state.img bs=1M count=4096
@@ -46,14 +80,22 @@ provision-state:
 $(OUT)/state.img:
 	$(MAKE) provision-state
 
-# QEMU-Test (serielle Konsole + SSH auf Port 2222)
-qemu: $(OUT)/state.img
+# ── Lokale Tests ─────────────────────────────────────────────────────────────
+run-qemu: $(OUT)/state.img
 	$(LINUXKIT) run qemu \
-	    --kernel $(OUT)/lk-kernel \
-	    --initrd $(OUT)/lk-initrd.img \
+	    --kernel $(LK_NAME)-kernel \
+	    --initrd $(LK_NAME)-initrd.img \
 	    --disk   $(OUT)/state.img \
 	    --publish 2222:22 \
 	    --mem 2048
+
+# VMware-VMDK direkt in vSphere/ESXi importieren:
+#   govc import.vmdk $(LK_NAME).vmdk [datastore-path]
+# Oder lokal mit VMware Fusion/Workstation öffnen.
+run-vmware:
+	@echo "VMDK: $(LK_NAME).vmdk"
+	@echo "In vSphere: govc import.vmdk $(LK_NAME).vmdk"
+	@echo "Lokal:      vmware $(LK_NAME).vmdk  (VMware Fusion/Workstation)"
 
 clean:
 	rm -rf $(OUT)
