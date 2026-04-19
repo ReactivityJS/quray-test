@@ -1,50 +1,59 @@
 LINUXKIT ?= linuxkit
-IMG_DIR  := images
-OUT_DIR  := output
+OUT      := output
+SYS_DIR  := images/system
 
-# Service-Images (werden als Build-Stages in system/Dockerfile referenziert)
+# Service-Images (werden NICHT in die initrd eingebettet –
+# containerd pullt/lädt sie beim ersten Boot)
 SERVICE_IMAGES := sshd ntp vmware firewall user-docker
 
-.PHONY: all build-services build-crun build-system build-os provision-state qemu clean
+.PHONY: all build-system build-os stage-images provision-state qemu clean
 
 all: build-os
 
-# 1. Service-Images bauen (Reihenfolge spielt keine Rolle)
+# System-Image bauen (enthält busybox + containerd + nerdctl + Scripts)
+build-system:
+	docker build -t local/system:1.0 $(SYS_DIR)/
+
+# OS-Image bauen → output/lk-kernel + output/lk-initrd.img
+build-os: build-system
+	mkdir -p $(OUT)
+	$(LINUXKIT) build --docker --format kernel+initrd \
+	    --name $(OUT)/lk linuxkit.yml
+
+# Service-Images bauen (für die eigenen Services sshd, ntp, vmware, firewall)
 build-services:
 	$(foreach s,$(SERVICE_IMAGES), \
-	    docker build -t local/$(s):1.0 $(IMG_DIR)/$(s)/;)
+	    docker build -t local/$(s):1.0 images/$(s)/;)
 
-# 2. crun Init-Layer bauen
-build-crun:
-	docker build -t local/crun:1.0 $(IMG_DIR)/crun/
+# Service-Images als TARs speichern (für Offline-Bootstrap via /data/images/)
+# → TARs auf den Host kopieren: scp output/images/*.tar root@host:/data/images/
+stage-images: build-services
+	mkdir -p $(OUT)/images
+	$(foreach s,$(SERVICE_IMAGES), \
+	    docker save local/$(s):1.0 -o $(OUT)/images/$(s).tar;)
+	docker pull docker:26-dind
+	docker save docker:26-dind -o $(OUT)/images/user-docker.tar
+	@echo ""
+	@echo "TARs gespeichert in $(OUT)/images/"
+	@echo "Auf den Host kopieren: scp $(OUT)/images/*.tar root@HOST:/data/images/"
 
-# 3. System-Image bauen (multi-stage: extrahiert rootfs aus Service-Images)
-build-system: build-services build-crun
-	docker build -t local/system:1.0 $(IMG_DIR)/system/
-
-# 4. LinuxKit OS-Image bauen → kernel + initrd
-build-os: build-system
-	mkdir -p $(OUT_DIR)
-	$(LINUXKIT) build --docker --format kernel+initrd \
-	    --name $(OUT_DIR)/lk linuxkit.yml
-
-# 5. State-Disk anlegen (4 GB ext4, einmalig)
+# State-Disk anlegen (4 GB ext4, einmalig)
 provision-state:
-	mkdir -p $(OUT_DIR)
-	dd if=/dev/zero of=$(OUT_DIR)/state.img bs=1M count=4096
-	mkfs.ext4 -q -L state $(OUT_DIR)/state.img
+	mkdir -p $(OUT)
+	dd if=/dev/zero of=$(OUT)/state.img bs=1M count=4096
+	mkfs.ext4 -q -L state $(OUT)/state.img
 
-$(OUT_DIR)/state.img:
+$(OUT)/state.img:
 	$(MAKE) provision-state
 
-# 6. QEMU-Test (serielle Konsole + SSH auf Port 2222)
-qemu: $(OUT_DIR)/state.img
+# QEMU-Test (serielle Konsole + SSH auf Port 2222)
+qemu: $(OUT)/state.img
 	$(LINUXKIT) run qemu \
-	    --kernel $(OUT_DIR)/lk-kernel \
-	    --initrd $(OUT_DIR)/lk-initrd.img \
-	    --disk $(OUT_DIR)/state.img \
+	    --kernel $(OUT)/lk-kernel \
+	    --initrd $(OUT)/lk-initrd.img \
+	    --disk   $(OUT)/state.img \
 	    --publish 2222:22 \
 	    --mem 2048
 
 clean:
-	rm -rf $(OUT_DIR)
+	rm -rf $(OUT)

@@ -1,0 +1,18 @@
+#!/bin/sh
+mkdir -p /run/containerd /data/containerd
+
+# containerd starten
+/usr/bin/containerd --config /etc/containerd/config.toml &
+CTD_PID=$!
+
+# Warten bis Socket bereit
+for i in $(seq 1 30); do
+    [ -S /run/containerd/containerd.sock ] && break
+    sleep 1
+done
+
+# Bootstrap: Container anlegen falls nicht vorhanden (idempotent)
+/usr/local/lib/init/bootstrap.sh
+
+# Auf containerd warten → busybox respawn greift bei Absturz
+wait $CTD_PID

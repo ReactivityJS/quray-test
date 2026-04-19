@@ -3,5 +3,5 @@ kernel:
   cmdline: "console=ttyS0 quiet rootwait"
 
 init:
-  - local/crun:1.0      # Layer 1: crun-Binary (/usr/bin/crun)
-  - local/system:1.0    # Layer 2: /init, /usr/local/bin/svc, /bundles/
+  # Einziges init-Layer: busybox + containerd + nerdctl + crun + Scripts
+  - local/system:1.0

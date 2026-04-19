@@ -1,85 +1,86 @@
 #!/bin/sh
-# svc start|stop|restart|status|log|list <name>
-SVC_DIR=/run/svc
-CTR_DIR=/run/containers
+# svc – OS-Service-Manager (wraps nerdctl)
+# Jeder Service hat eine Definition in /usr/local/lib/svc-def/<name>.sh
 
+SVC_DEF=/usr/local/lib/svc-def
 action="${1:-}"; name="${2:-}"
 
-_require_name() {
+_require() {
     [ -n "$name" ] || { echo "Usage: svc $action <name>"; exit 1; }
-    [ -d "$CTR_DIR/$name" ] || { echo "Unknown service: $name (no bundle at $CTR_DIR/$name)"; exit 1; }
-}
-
-_status() {
-    local pid state
-    pid=$(cat "$SVC_DIR/$name.pid" 2>/dev/null)
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-        state=$(crun state "$name" 2>/dev/null \
-            | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
-        echo "$name: running  (supervise=$pid  container=$state)"
-    else
-        echo "$name: stopped"
-    fi
-}
-
-_stop() {
-    local pid
-    pid=$(cat "$SVC_DIR/$name.pid" 2>/dev/null)
-    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
-    sleep 1
-    crun kill "$name" TERM 2>/dev/null || true
-    sleep 1
-    crun delete -f "$name" 2>/dev/null || true
-    rm -f "$SVC_DIR/$name.pid"
-    echo "$name: stopped"
-}
-
-_start() {
-    local bundle="$CTR_DIR/$name"
-    (while true; do
-        crun run --bundle "$bundle" "$name" >>"$SVC_DIR/$name.log" 2>&1 || true
-        crun delete -f "$name" 2>/dev/null || true
-        sleep 1
-    done) &
-    echo $! >"$SVC_DIR/$name.pid"
-    echo "$name: started"
 }
 
 case "$action" in
+    list)
+        nerdctl ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+        ;;
     status)
-        _require_name
-        _status
+        _require
+        nerdctl ps -a --filter "name=^${name}$" \
+            --format "table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.RunningFor}}"
         ;;
     start)
-        _require_name
-        _start
+        _require
+        nerdctl start "$name"
         ;;
     stop)
-        _require_name
-        _stop
+        _require
+        nerdctl stop "$name"
         ;;
     restart)
-        _require_name
-        _stop
-        sleep 1
-        _start
+        _require
+        nerdctl restart "$name"
         ;;
     log)
-        _require_name
-        tail -f "$SVC_DIR/$name.log"
+        _require
+        nerdctl logs -f "$name"
         ;;
-    list)
-        found=0
-        for f in "$SVC_DIR"/*.pid; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f" .pid)
-            _status
-            found=1
-        done
-        [ "$found" -eq 0 ] && echo "No services running"
+    enable)
+        # Container neu anlegen (laut svc-def) falls nicht vorhanden
+        _require
+        def="$SVC_DEF/${name}.sh"
+        [ -f "$def" ] || { echo "Keine Definition für: $name ($def)"; exit 1; }
+        sh "$def"
+        ;;
+    disable)
+        # Container stoppen und entfernen (restart-manager greift dann nicht mehr)
+        _require
+        nerdctl stop "$name" 2>/dev/null || true
+        nerdctl rm   "$name" 2>/dev/null || true
+        echo "$name: deaktiviert"
+        ;;
+    update)
+        # Image aktualisieren und Container neu erstellen
+        # Usage: svc update <name> [image:tag]
+        _require
+        def="$SVC_DEF/${name}.sh"
+        [ -f "$def" ] || { echo "Keine Definition für: $name"; exit 1; }
+        new_image="${3:-}"
+        [ -n "$new_image" ] && nerdctl pull "$new_image"
+        nerdctl stop "$name" 2>/dev/null || true
+        nerdctl rm   "$name" 2>/dev/null || true
+        sh "$def"
+        echo "$name: aktualisiert"
+        ;;
+    exec)
+        _require
+        shift 2
+        nerdctl exec -it "$name" "$@"
         ;;
     *)
-        echo "Usage: svc start|stop|restart|status|log|list <name>"
+        cat <<'USAGE'
+svc <aktion> [name] [optionen]
+
+  list                    Alle Container anzeigen
+  status  <name>          Detailstatus eines Containers
+  start   <name>          Container starten
+  stop    <name>          Container stoppen
+  restart <name>          Container neu starten
+  log     <name>          Log-Stream (Ctrl+C zum Beenden)
+  enable  <name>          Container anlegen/starten (laut svc-def)
+  disable <name>          Container stoppen und entfernen
+  update  <name> [image]  Image aktualisieren + Container neu erstellen
+  exec    <name> [cmd...]  Befehl im Container ausführen
+USAGE
         exit 1
         ;;
 esac

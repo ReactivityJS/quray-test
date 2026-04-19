@@ -1,0 +1,6 @@
+# /etc/inittab  –  busybox init
+# Einziger respawn: containerd (managed alle anderen Container selbst)
+::sysinit:/usr/local/lib/init/setup.sh
+::respawn:/usr/local/lib/svc-run/containerd
+::ctrlaltdel:/sbin/reboot
+::shutdown:/usr/local/lib/init/shutdown.sh

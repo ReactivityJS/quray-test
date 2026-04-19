@@ -1,0 +1,13 @@
+version = 2
+root    = "/data/containerd"
+state   = "/run/containerd"
+
+[grpc]
+  address = "/run/containerd/containerd.sock"
+
+# Restart-manager: startet --restart=always Container nach containerd-Neustart
+[plugins."io.containerd.service.v1.restart-service"]
+
+# Overlayfs-Snapshotter (braucht ext4 auf /data)
+[plugins."io.containerd.snapshotter.v1.overlayfs"]
+  root_path = "/data/containerd/snapshots"
